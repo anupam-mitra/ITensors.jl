@@ -61,7 +61,7 @@ end
 
   @testset "norm MPO" begin
     A = randomMPO(sites)
-    Adag = ITensors.sim_linkinds(dag(A))
+    Adag = sim(linkinds, dag(A))
     A² = ITensor(1)
     for j = 1:N
       A² *= Adag[j] * A[j]
@@ -79,7 +79,7 @@ end
     for j in 1:N
       A[j] .*= j
     end
-    Adag = ITensors.sim_linkinds(dag(A))
+    Adag = sim(linkinds, dag(A))
     A² = ITensor(1)
     for j = 1:N
       A² *= Adag[j] * A[j]
@@ -545,6 +545,25 @@ end
     @test tr(H2) ≈ d^N
   end
 
+  @testset "check_hascommonsiteinds checks in DMRG, inner, dot" begin
+    N = 4
+    s1 = siteinds("S=1/2", N)
+    s2 = siteinds("S=1/2", N)
+    psi1 = randomMPS(s1)
+    psi2 = randomMPS(s2)
+    H1 = MPO(AutoMPO() + ("Id", 1), s1)
+    H2 = MPO(AutoMPO() + ("Id", 1), s2)
+
+    @test_throws ErrorException inner(psi1, H2, psi1)
+    @test_throws ErrorException inner(psi1, H2, psi2; make_inds_match = false)
+
+    sweeps = Sweeps(1)
+    maxdim!(sweeps, 10)
+
+    @test_throws ErrorException dmrg(H2, psi1, sweeps)
+    @test_throws ErrorException dmrg(H1, [psi2], psi1, sweeps)
+    @test_throws ErrorException dmrg([H1, H2], psi1, sweeps)
+  end
 end
 
 nothing

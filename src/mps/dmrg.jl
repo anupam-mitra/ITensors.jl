@@ -1,4 +1,19 @@
 
+IndexSet_ignore_missing(is::Union{Index, Nothing}...) =
+  IndexSet(filter(i -> i isa Index, is))
+
+function permute(M::AbstractMPS, ::Tuple{typeof(linkind), typeof(siteinds), typeof(linkind)})
+  M̃ = MPO(length(M))
+  for n in 1:length(M)
+    lₙ₋₁ = linkind(M, n-1)
+    lₙ = linkind(M, n)
+    s⃗ₙ = IndexSet(sort(Tuple(siteinds(M, n)); by = plev))
+    M̃[n] = permute(M[n], IndexSet_ignore_missing(lₙ₋₁, s⃗ₙ..., lₙ))
+  end
+  set_ortho_lims!(M̃, ortho_lims(M))
+  return M̃
+end
+
 """
     dmrg(H::MPO,psi0::MPS,sweeps::Sweeps;kwargs...)
                     
@@ -14,10 +29,12 @@ Returns:
 * `energy::Float64` - eigenvalue of the optimized MPS
 * `psi::MPS` - optimized MPS
 """
-function dmrg(H::MPO,
-              psi0::MPS,
-              sweeps::Sweeps;
-              kwargs...)
+function dmrg(H::MPO, psi0::MPS, sweeps::Sweeps; kwargs...)
+  check_hascommoninds(siteinds, H, psi0)
+  check_hascommoninds(siteinds, H, psi0')
+  # Permute the indices to have a better memory layout
+  # and minimize permutations
+  H = permute(H, (linkind, siteinds, linkind))
   PH = ProjMPO(H)
   return dmrg(PH,psi0,sweeps;kwargs...)
 end
@@ -43,10 +60,12 @@ Returns:
 * `energy::Float64` - eigenvalue of the optimized MPS
 * `psi::MPS` - optimized MPS
 """
-function dmrg(Hs::Vector{MPO},
-              psi0::MPS,
-              sweeps::Sweeps;
-              kwargs...)
+function dmrg(Hs::Vector{MPO}, psi0::MPS, sweeps::Sweeps; kwargs...)
+  for H in Hs
+    check_hascommoninds(siteinds, H, psi0)
+    check_hascommoninds(siteinds, H, psi0')
+  end
+  Hs .= permute.(Hs, Ref((linkind, siteinds, linkind)))
   PHS = ProjMPOSum(Hs)
   return dmrg(PHS,psi0,sweeps;kwargs...)
 end
@@ -71,23 +90,28 @@ Returns:
 * `energy::Float64` - eigenvalue of the optimized MPS
 * `psi::MPS` - optimized MPS
 """
-function dmrg(H::MPO,
-              Ms::Vector{MPS},
-              psi0::MPS,
-              sweeps::Sweeps;
-              kwargs...)
+function dmrg(H::MPO, Ms::Vector{MPS}, psi0::MPS, sweeps::Sweeps; kwargs...)
+  check_hascommoninds(siteinds, H, psi0)
+  check_hascommoninds(siteinds, H, psi0')
+  for M in Ms
+    check_hascommoninds(siteinds, M, psi0)
+  end
+  H = permute(H, (linkind, siteinds, linkind))
+  Ms .= permute.(Ms, Ref((linkind, siteinds, linkind)))
   weight = get(kwargs,:weight,1.0)
   PMM = ProjMPO_MPS(H,Ms;weight=weight)
   return dmrg(PMM,psi0,sweeps;kwargs...)
 end
 
 
-function dmrg(PH,
-              psi0::MPS,
-              sweeps::Sweeps;
-              kwargs...)
-  # Debug level checks
-  @debug begin
+function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
+  if length(psi0) == 1
+    error("`dmrg` currently does not support system sizes of 1. You can diagonalize the MPO tensor directly with tools like `LinearAlgebra.eigen`, `KrylovKit.eigsolve`, etc.")
+  end
+
+  @debug_check begin
+    # Debug level checks
+    # Enable with ITensors.enable_debug_checks()
     checkflux(psi0)
     checkflux(PH)
   end
@@ -137,7 +161,12 @@ function dmrg(PH,
   psi = copy(psi0)
   N = length(psi)
 
-  position!(PH, psi0, 1)
+  if !isortho(psi) || orthocenter(psi) != 1
+    orthogonalize!(psi,1)
+  end
+  @assert isortho(psi) && orthocenter(psi) == 1
+
+  position!(PH, psi, 1)
   energy = 0.0
 
   for sw=1:nsweep(sweeps)
@@ -145,31 +174,31 @@ function dmrg(PH,
 
     for (b, ha) in sweepnext(N)
 
-      @debug begin
+      @debug_check begin
         checkflux(psi)
         checkflux(PH)
       end
 
-@timeit_debug GLOBAL_TIMER "position!" begin
+      @timeit_debug timer "dmrg: position!" begin
       position!(PH, psi, b)
-end
+      end
 
-      @debug begin
+      @debug_check begin
         checkflux(psi)
         checkflux(PH)
       end
 
-@timeit_debug GLOBAL_TIMER "psi[b]*psi[b+1]" begin
+      @timeit_debug timer "dmrg: psi[b]*psi[b+1]" begin
       phi = psi[b] * psi[b+1]
-end
+      end
 
-@timeit_debug GLOBAL_TIMER "eigsolve" begin
+      @timeit_debug timer "dmrg: eigsolve" begin
       vals, vecs = eigsolve(PH, phi, 1, eigsolve_which_eigenvalue;
                             ishermitian = ishermitian,
                             tol = eigsolve_tol,
                             krylovdim = eigsolve_krylovdim,
                             maxiter = eigsolve_maxiter)
-end
+      end
       energy, phi = vals[1], vecs[1]
 
       ortho = ha == 1 ? "left" : "right"
@@ -180,11 +209,11 @@ end
         drho = noise(sweeps, sw) * noiseterm(PH,phi,ortho)
       end
 
-      @debug begin
+      @debug_check begin
         checkflux(phi)
       end
 
-@timeit_debug GLOBAL_TIMER "replacebond!" begin
+      @timeit_debug timer "dmrg: replacebond!" begin
       spec = replacebond!(psi, b, phi; maxdim = maxdim(sweeps, sw),
                                        mindim = mindim(sweeps, sw),
                                        cutoff = cutoff(sweeps, sw),
@@ -193,9 +222,9 @@ end
                                        normalize = true,
                                        which_decomp = which_decomp,
                                        svd_alg = svd_alg)
-end
+      end
 
-      @debug begin
+      @debug_check begin
         checkflux(psi)
         checkflux(PH)
       end

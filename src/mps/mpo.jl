@@ -132,26 +132,39 @@ function MPO(A::MPS; kwargs...)
   return M
 end
 
+# XXX: rename originalsiteind?
 """
     siteind(M::MPO, j::Int; plev = 0, kwargs...)
 
 Get the first site Index of the MPO found, by
 default with prime level 0. 
 """
-siteind(M::MPO, j::Int; kwargs...) =
-  firstsiteind(M, j; plev = 0, kwargs...)
+siteind(M::MPO, j::Int; kwargs...) = siteind(first, M, j; plev = 0, kwargs...)
 
 # TODO: make this return the site indices that would have
-# been used to create the MPO, i.e.:
+# been used to create the MPO? I.e.:
 # [dag(siteinds(M, j; plev = 0, kwargs...)) for j in 1:length(M)]
 """
     siteinds(M::MPO; kwargs...)
 
-Get a Vector of IndexSets the all of the site indices of M.
+Get a Vector of IndexSets of all the site indices of M.
 """
-siteinds(M::MPO; kwargs...) =
-  [siteinds(M, j; kwargs...) for j in 1:length(M)]
+siteinds(M::MPO; kwargs...) = siteinds(all, M; kwargs...)
 
+siteinds(Mψ::Tuple{MPO, MPS}, n::Int; kwargs...) =
+  siteinds(uniqueinds, Mψ[1], Mψ[2], n; kwargs...)
+
+function nsites(Mψ::Tuple{MPO, MPS})
+  M, ψ = Mψ
+  N = length(M)
+  @assert N == length(ψ)
+  return N
+end
+
+siteinds(Mψ::Tuple{MPO, MPS}; kwargs...) =
+  [siteinds(Mψ, n; kwargs...) for n in 1:nsites(Mψ)]
+
+# XXX: rename originalsiteinds?
 """
     firstsiteinds(M::MPO; kwargs...)
 
@@ -159,8 +172,16 @@ Get a Vector of the first site Index found on each site of M.
 
 By default, it finds the first site Index with prime level 0.
 """
-firstsiteinds(M::MPO; kwargs...) =
-  [siteind(M, j; kwargs...) for j in 1:length(M)]
+firstsiteinds(M::MPO; kwargs...) = siteinds(first, M; plev = 0, kwargs...)
+
+function hassameinds(::typeof(siteinds), ψ::MPS, Hϕ::Tuple{MPO, MPS})
+  N = length(ψ)
+  @assert N == length(Hϕ[1]) == length(Hϕ[1])
+  for n in 1:N
+    !hassameinds(siteinds(Hϕ, n), siteinds(ψ, n)) && return false
+  end
+  return true
+end
 
 """
     dot(y::MPS, A::MPO, x::MPS; make_inds_match::Bool = true)
@@ -179,15 +200,28 @@ dimensions or QN blocks).
 function dot(y::MPS, A::MPO, x::MPS;
              make_inds_match::Bool = true)::Number
   N = length(A)
-  if length(y) != N || length(x) != N
-    throw(DimensionMismatch("inner: mismatched lengths $N and $(length(x)) or $(length(y))"))
-  end
+  check_hascommoninds(siteinds, A, x)
   ydag = dag(y)
-  sim_linkinds!(ydag)
-  if make_inds_match
-    sAx = unique_siteinds(A, x)
-    replace_siteinds!(ydag, sAx)
+  sim!(linkinds, ydag)
+  if !hassameinds(siteinds, y, (A, x))
+    sAx = siteinds((A, x))
+    if any(s -> length(s) > 1, sAx)
+      n = findfirst(n -> !hassameinds(siteinds(y, n), siteinds((A, x), n)), 1:N)
+      error("""Calling `dot(ϕ::MPS, H::MPO, ψ::MPS)` with multiple site indices per MPO/MPS tensor but the site indices don't match. Even with `make_inds_match = true`, the case of multiple site indices per MPO/MPS is not handled automatically. The sites with unmatched site indices are:
+
+                inds(ϕ[$n]) = $(inds(y[n]))
+
+                inds(H[$n]) = $(inds(A[n]))
+
+                inds(ψ[$n]) = $(inds(x[n]))
+
+            Make sure the site indices of your MPO/MPS match. You may need to prime one of the MPS, such as `dot(ϕ', H, ψ)`.""")
+    end
+    if make_inds_match
+      replace_siteinds!(ydag, sAx)
+    end
   end
+  check_hascommoninds(siteinds, A, y)
   O = ydag[1] * A[1] * x[1]
   for j in 2:N
     O = O * ydag[j] * A[j] * x[j]
@@ -195,7 +229,7 @@ function dot(y::MPS, A::MPO, x::MPS;
   return O[]
 end
 
-inner(y::MPS, A::MPO, x::MPS) = dot(y, A, x)
+inner(y::MPS, A::MPO, x::MPS; kwargs...) = dot(y, A, x; kwargs...)
 
 """
     dot(B::MPO, y::MPS, A::MPO, x::MPS; make_inds_match::Bool = true)
@@ -357,27 +391,31 @@ Base.:*(ψ::MPS, A::MPO; kwargs...) = *(A, ψ; kwargs...)
 function _contract_densitymatrix(A::MPO, ψ::MPS; kwargs...)::MPS
   n = length(A)
   n != length(ψ) && throw(DimensionMismatch("lengths of MPO ($n) and MPS ($(length(ψ))) do not match"))
+  if n == 1
+    return MPS([A[1] * ψ[1]])
+  end
+
   ψ_out         = similar(ψ)
   cutoff::Float64 = get(kwargs, :cutoff, 1e-13)
   maxdim::Int     = get(kwargs,:maxdim,maxlinkdim(ψ))
   mindim::Int     = max(get(kwargs,:mindim,1), 1)
   normalize::Bool = get(kwargs, :normalize, false) 
 
-  any(i -> isnothing(i), common_siteinds(A, ψ)) && error("In `contract(A::MPO, x::MPS)`, `A` and `x` must share a set of site indices")
+  any(i -> isempty(i), siteinds(commoninds, A, ψ)) && error("In `contract(A::MPO, x::MPS)`, `A` and `x` must share a set of site indices")
 
   # In case A and ψ have the same link indices
-  A = sim_linkinds(A)
+  A = sim(linkinds, A)
 
   ψ_c = dag(ψ)
   A_c = dag(A)
 
   # To not clash with the link indices of A and ψ
-  sim_linkinds!(A_c)
-  sim_linkinds!(ψ_c)
-  sim_common_siteinds!(A_c, ψ_c)
+  sim!(linkinds, A_c)
+  sim!(linkinds, ψ_c)
+  sim!(siteinds, commoninds, A_c, ψ_c)
 
   # A version helpful for making the density matrix
-  simA_c = sim_unique_siteinds(A_c, ψ_c)
+  simA_c = sim(siteinds, uniqueinds, A_c, ψ_c)
 
   # Store the left environment tensors
   E = Vector{ITensor}(undef, n-1)
@@ -391,26 +429,23 @@ function _contract_densitymatrix(A::MPO, ψ::MPS; kwargs...)::MPS
   ρ = E[n-1] * R * simR_c
   l = linkind(ψ, n-1)
   ts = isnothing(l) ? "" : tags(l)
-  s = unique_siteind(A, ψ, n)
-  s̃ = unique_siteind(simA_c, ψ_c, n)
-  Lis = IndexSet(s)
-  Ris = IndexSet(s̃)
-  F = eigen(ρ, Lis, Ris; ishermitian=true, 
-                         tags=ts, 
-                         kwargs...)
+  Lis = siteinds(uniqueinds, A, ψ, n)
+  Ris = siteinds(uniqueinds, simA_c, ψ_c, n)
+  F = eigen(ρ, Lis, Ris; ishermitian = true, 
+                         tags = ts, kwargs...)
   D, U, Ut = F.D, F.V, F.Vt
   l_renorm, r_renorm = F.l, F.r
   ψ_out[n] = Ut
   R = R * dag(Ut) * ψ[n-1] * A[n-1]
   simR_c = simR_c * U * ψ_c[n-1] * simA_c[n-1]
   for j in reverse(2:n-1)
-    s = unique_siteind(A, ψ, j)
-    s̃ = unique_siteind(simA_c, ψ_c, j)
+    s = siteinds(uniqueinds, A, ψ, j)
+    s̃ = siteinds(uniqueinds, simA_c, ψ_c, j)
     ρ = E[j-1] * R * simR_c
     l = linkind(ψ, j-1)
     ts = isnothing(l) ? "" : tags(l)
-    Lis = IndexSet(s, l_renorm)
-    Ris = IndexSet(s̃, r_renorm)
+    Lis = IndexSet(s..., l_renorm)
+    Ris = IndexSet(s̃..., r_renorm)
     F = eigen(ρ, Lis, Ris; ishermitian=true,
                            tags=ts, 
                            kwargs...)
@@ -464,6 +499,11 @@ function Base.:*(A::MPO, B::MPO; kwargs...)
   mindim::Int = max(get(kwargs,:mindim,1), 1)
   N = length(A)
   N != length(B) && throw(DimensionMismatch("lengths of MPOs A ($N) and B ($(length(B))) do not match"))
+
+  if N == 1
+    return MPO([A[1] * B[1]])
+  end
+
   A_ = copy(A)
   orthogonalize!(A_, 1)
   B_ = copy(B)
@@ -513,13 +553,21 @@ function Base.:*(A::MPO, B::MPO; kwargs...)
                            sites_B[i+1],
                            commonind(res[i+1], res[i+2]))
   end
-  clust = nfork * A_[N-1] * B_[N-1]
+  clust = if N > 2
+    nfork * A_[N-1] * B_[N-1]
+  else
+    A_[N-1] * B_[N-1]
+  end
   nfork = clust * A_[N] * B_[N]
 
   # in case we primed A
   A_ind = uniqueind(filterinds(A_[N-1]; tags = "Site"),
                     filterinds(B_[N-1]; tags = "Site"))
-  Lis = IndexSet(A_ind, sites_B[N-1], commonind(res[N-2], res[N-1]))
+  Lis = if N > 2
+    IndexSet(A_ind, sites_B[N-1], commonind(res[N-2], res[N-1]))
+  else
+    IndexSet(A_ind, sites_B[N-1])
+  end
   U, V = factorize(nfork, Lis; 
                    ortho="right",
                    cutoff=cutoff,
@@ -605,12 +653,12 @@ function sample(M::MPO)
   return result
 end
 
-function HDF5.write(parent::Union{HDF5File,HDF5Group},
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group},
                     name::AbstractString,
                     M::MPO)
-  g = g_create(parent,name)
-  attrs(g)["type"] = "MPO"
-  attrs(g)["version"] = 1
+  g = create_group(parent,name)
+  attributes(g)["type"] = "MPO"
+  attributes(g)["version"] = 1
   N = length(M)
   write(g, "rlim", M.rlim)
   write(g, "llim", M.llim)
@@ -620,11 +668,11 @@ function HDF5.write(parent::Union{HDF5File,HDF5Group},
   end
 end
 
-function HDF5.read(parent::Union{HDF5File,HDF5Group},
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group},
                    name::AbstractString,
                    ::Type{MPO})
-  g = g_open(parent,name)
-  if read(attrs(g)["type"]) != "MPO"
+  g = open_group(parent,name)
+  if read(attributes(g)["type"]) != "MPO"
     error("HDF5 group or file does not contain MPO data")
   end
   N = read(g, "length")

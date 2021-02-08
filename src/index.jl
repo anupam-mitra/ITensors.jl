@@ -1,5 +1,23 @@
 
+#const IDType = UInt128
 const IDType = UInt64
+
+# Custom RNG for Index id
+# Vector of RNGs, one for each thread
+const INDEX_ID_RNGs = MersenneTwister[]
+@inline index_id_rng() = index_id_rng(Threads.threadid())
+@noinline function index_id_rng(tid::Int)
+  0 < tid <= length(INDEX_ID_RNGs) || _index_id_rng_length_assert()
+  if @inbounds isassigned(INDEX_ID_RNGs, tid)
+    @inbounds MT = INDEX_ID_RNGs[tid]
+  else
+    MT = MersenneTwister()
+    @inbounds INDEX_ID_RNGs[tid] = MT
+  end
+  return MT
+end
+@noinline _index_id_rng_length_assert() =  @assert false "0 < tid <= length(INDEX_ID_RNGs)"
+
 
 """
 An `Index` represents a single tensor index with fixed dimension `dim`. Copies of an Index compare equal unless their 
@@ -54,7 +72,7 @@ julia> tags(i)
 ```
 """
 function Index(dim::Int; tags="", plev=0)
-  return Index(rand(IDType), dim, Neither, tags, plev)
+  return Index(rand(index_id_rng(), IDType), dim, Neither, tags, plev)
 end
 
 """
@@ -182,7 +200,7 @@ Produces an `Index` with the same properties (dimension or QN structure)
 but with a new `id`.
 """
 sim(i::Index; tags = copy(tags(i)), plev = plev(i), dir = dir(i)) =
-  Index(rand(IDType), copy(space(i)), dir, tags, plev)
+  Index(rand(index_id_rng(), IDType), copy(space(i)), dir, tags, plev)
 
 """
     dag(i::Index)
@@ -305,11 +323,9 @@ julia> hastags(j, "n=4,Link")
 true
 ```
 """
-settags(i::Index, ts) = Index(id(i),
-                              copy(space(i)),
-                              dir(i),
-                              ts,
-                              plev(i))
+settags(i::Index, ts) = Index(id(i), copy(space(i)), dir(i), ts, plev(i))
+
+setspace(i::Index, s) = Index(id(i), s, dir(i), tags(i), plev(i))
 
 """
     addtags(i::Index,ts)
@@ -319,8 +335,7 @@ specified tags added to the existing ones.
 The `ts` argument can be a comma-separated 
 string of tags or a TagSet.
 """
-addtags(i::Index, ts) =
-  settags(i, addtags(tags(i), ts))
+addtags(i::Index, ts) = settags(i, addtags(tags(i), ts))
 
 """
     removetags(i::Index, ts)
@@ -576,32 +591,32 @@ function readcpp(io::IO, ::Type{Index}; kwargs...)
   return Index(id, dim, dir, tags)
 end
 
-function HDF5.write(parent::Union{HDF5File, HDF5Group},
+function HDF5.write(parent::Union{HDF5.File, HDF5.Group},
                     name::AbstractString,
                     I::Index)
-  g = g_create(parent, name)
-  attrs(g)["type"] = "Index"
-  attrs(g)["version"] = 1
+  g = create_group(parent, name)
+  attributes(g)["type"] = "Index"
+  attributes(g)["version"] = 1
   write(g, "id", id(I))
   write(g, "dim", dim(I))
   write(g, "dir", Int(dir(I)))
   write(g, "tags", tags(I))
   write(g, "plev", plev(I))
   if typeof(space(I)) == Int
-    attrs(g)["space_type"] = "Int"
+    attributes(g)["space_type"] = "Int"
   elseif typeof(space(I)) == QNBlocks
-    attrs(g)["space_type"] = "QNBlocks"
+    attributes(g)["space_type"] = "QNBlocks"
     write(g,"space",space(I))
   else
     error("Index space type not recognized")
   end
 end
 
-function HDF5.read(parent::Union{HDF5File,HDF5Group},
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group},
                    name::AbstractString,
                    ::Type{Index})
-  g = g_open(parent,name)
-  if read(attrs(g)["type"]) != "Index"
+  g = open_group(parent,name)
+  if read(attributes(g)["type"]) != "Index"
     error("HDF5 group or file does not contain Index data")
   end
   id = read(g,"id")
@@ -610,8 +625,8 @@ function HDF5.read(parent::Union{HDF5File,HDF5Group},
   tags = read(g,"tags",TagSet)
   plev = read(g,"plev")
   space_type = "Int"
-  if exists(attrs(g),"space_type")
-    space_type = read(attrs(g)["space_type"])
+  if haskey(attributes(g),"space_type")
+    space_type = read(attributes(g)["space_type"])
   end
   if space_type == "Int"
     space = dim

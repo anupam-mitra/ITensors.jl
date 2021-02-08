@@ -1,11 +1,11 @@
 using BenchmarkTools
 using ITensors
 
-function main(; Nmax = 8)
+function main(; Nrange = 1:8)
   # Don't warn about large tensor orders
-  disable_warn_order!()
+  @disable_warn_order begin
 
-  for N in 1:Nmax
+  for N in Nrange
     println("#################################################")
     println("# order = ", 2 * N)
     println("#################################################")
@@ -24,13 +24,15 @@ function main(; Nmax = 8)
 
     # Reshape the ITensors into matrices before contracting
     println("Combine then contract:")
-    enable_combine_contract!()
+    ITensors.enable_combine_contract()
     C_combine_contract = @btime $A' * $B samples = 5
-    disable_combine_contract!()
+    ITensors.disable_combine_contract()
     println()
 
     @show C_contract ≈ C_combine_contract
     println()
   end
+
+  end # @disable_warn_order
 end
 

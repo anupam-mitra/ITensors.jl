@@ -63,8 +63,8 @@ using ITensors, Test, Random
 
     ampo = AutoMPO()
     for j = 1:N
-      j < N && add!(ampo,-1.0,"Sz",j,"Sz",j+1)
-      add!(ampo,-0.5,"Sx",j)
+      j < N && add!(ampo,-1.0,"Z",j,"Z",j+1)
+      add!(ampo,-1.0,"X",j)
     end
     H = MPO(ampo,sites)
 
@@ -76,7 +76,7 @@ using ITensors, Test, Random
 
     # Exact energy for transverse field Ising model
     # with open boundary conditions at criticality
-    energy_exact = 0.25 - 0.25/sin(π/(2*(2*N+1)))
+    energy_exact = 1.0 - 1.0/sin(π/(4*N+2))
     @test abs((energy-energy_exact)/energy_exact) < 1e-4
   end
 
@@ -90,8 +90,8 @@ using ITensors, Test, Random
 
     ampo = AutoMPO()
     for j = 1:N
-      j < N && add!(ampo,-1.0,"Sx",j,"Sx",j+1)
-      add!(ampo,-0.5,"Sz",j)
+      j < N && add!(ampo,-1.0,"X",j,"X",j+1)
+      add!(ampo,-1.0,"Z",j)
     end
     H = MPO(ampo,sites)
 
@@ -103,11 +103,17 @@ using ITensors, Test, Random
 
     # Exact energy for transverse field Ising model
     # with open boundary conditions at criticality
-    energy_exact = 0.25 - 0.25/sin(π/(2*(2*N+1)))
+    energy_exact = 1.0 - 1.0/sin(π/(4*N+2))
     @test abs((energy-energy_exact)/energy_exact) < 1e-4
   end
 
   @testset "DMRGObserver" begin
+
+    # Test that basic constructors work
+    observer = DMRGObserver()
+    observer = DMRGObserver(;minsweeps=2,energy_tol=1E-4)
+
+    # Test in a DMRG calculation
     N = 10
     sites = siteinds("S=1/2",N)
     Random.seed!(42)
@@ -279,6 +285,75 @@ using ITensors, Test, Random
     @test (-8.02 < energy < -8.01)
   end
 
+  @testset "Input Without Ortho Center or Not at 1" begin
+    N = 6
+    sites = siteinds("S=1",N)
+
+    ampo = AutoMPO()
+    for j=1:N-1
+      add!(ampo,"Sz",j,"Sz",j+1)
+      add!(ampo,0.5,"S+",j,"S-",j+1)
+      add!(ampo,0.5,"S-",j,"S+",j+1)
+    end
+    H = MPO(ampo,sites)
+
+
+    sweeps = Sweeps(1)
+    maxdim!(sweeps,10)
+    cutoff!(sweeps,1E-11)
+
+    psi0 = randomMPS(sites,4)
+
+    # Test that input works with wrong ortho center:
+    orthogonalize!(psi0,5)
+    energy,psi = dmrg(H, psi0, sweeps; outputlevel=0)
+
+    # Test that input works with no ortho center:
+    for j=1:N
+      psi0[j] = randomITensor(inds(psi0[j]))
+    end
+    energy,psi = dmrg(H, psi0, sweeps; outputlevel=0)
+  end
+
+  @testset "Bug fixed in threaded block sparse" begin
+    maxdim = 10
+    nsweeps = 2
+    outputlevel = 0
+    cutoff = 0.0
+    Nx = 4
+    Ny = 2
+    U = 4.0
+    t = 1.0
+    N = Nx * Ny
+    sweeps = Sweeps(nsweeps)
+    maxdims = min.(maxdim, [100, 200, 400, 800, 2000, 3000, maxdim])
+    maxdim!(sweeps, maxdims...)
+    cutoff!(sweeps, cutoff)
+    noise!(sweeps, 1e-6, 1e-7, 1e-8, 0.0)
+    sites = siteinds("Electron", N; conserve_qns = true)
+    lattice = square_lattice(Nx, Ny; yperiodic = true)
+    ampo = AutoMPO()
+    for b in lattice
+      ampo .+= -t, "Cdagup", b.s1, "Cup", b.s2
+      ampo .+= -t, "Cdagup", b.s2, "Cup", b.s1
+      ampo .+= -t, "Cdagdn", b.s1, "Cdn", b.s2
+      ampo .+= -t, "Cdagdn", b.s2, "Cdn", b.s1
+    end
+    for n in 1:N
+      ampo .+= U, "Nupdn", n
+    end
+    H = MPO(ampo,sites)
+    Hsplit = splitblocks(linkinds, H)
+    state = [isodd(n) ? "↑" : "↓" for n in 1:N]
+    ψ0 = productMPS(sites, state)
+    using_threaded_blocksparse = ITensors.enable_threaded_blocksparse()
+    energy, _ = dmrg(H, ψ0, sweeps; outputlevel = outputlevel)
+    energy_split, _ = dmrg(Hsplit, ψ0, sweeps; outputlevel = outputlevel)
+    @test energy_split ≈ energy
+    if !using_threaded_blocksparse
+      ITensors.disable_threaded_blocksparse()
+    end
+  end
 end
 
 nothing

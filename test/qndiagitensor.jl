@@ -8,8 +8,7 @@ using ITensors,
 
     D = diagITensor(QN(),i,dag(i'))
 
-    for n in nnzblocks(D)
-      b = nzblock(D,n)
+    for b in eachnzblock(D)
       @test flux(D,b) == QN()
     end
 
@@ -33,8 +32,7 @@ using ITensors,
 
     D = diagITensor((i, dag(i')))
 
-    for n in nnzblocks(D)
-      b = nzblock(D, n)
+    for b in eachnzblock(D)
       @test flux(D, b) == QN()
     end
   end
@@ -66,12 +64,50 @@ using ITensors,
 
     δiĩ = δ((dag(i), ĩ))
 
-    for n in nnzblocks(δiĩ)
-      b = nzblock(δiĩ, n)
+    for b in eachnzblock(δiĩ)
       @test flux(δiĩ, b) == QN()
     end
   end
 
+  @testset "Regression test for QN delta contraction bug" begin
+    # http://itensor.org/support/2814/block-sparse-itensor-wrong-results-multiplying-delta-tensor
+    s = Index([QN(("N",i,1))=>1 for i = 1:2])
+    l = dag(addtags(s,"left"))
+    r = addtags(s,"right")
+    u = addtags(s,"up")
+    d = dag(addtags(s,"down"))
+    A = emptyITensor(l,r,u,d)
+    A[1,1,1,1] = 1.0
+    A[1,1,2,2] = 1.0
+    A[2,2,1,1] = 1.0
+    A[2,2,2,2] = 1.0
+    δlr = δ(dag(l), dag(r))
+    δud = δ(dag(u), dag(d))
+    A1 = A * δlr
+    denseA1 = dense(A) * dense(δlr)
+    A2 = A1 * δud
+    denseA2 = denseA1 * dense(δud)
+    @test dense(A1) ≈ denseA1
+    @test dense(A2) ≈ denseA2
+    @test A2[] ≈ 4
+  end
+
+  @testset "Regression test for printing a QN Diag ITensor" begin
+    # https://github.com/ITensor/NDTensors.jl/issues/61
+    i = Index([QN()=>2])
+    A = randomITensor(i', dag(i))
+    U, S, V = svd(A, i')
+    # Test printing S
+    io = IOBuffer()
+    show(io, S)
+    sS = String(take!(io))
+    @test sS isa String
+    # Test printing U
+    io = IOBuffer()
+    show(io, U)
+    sU = String(take!(io))
+    @test sU isa String
+  end
 end
 
 nothing

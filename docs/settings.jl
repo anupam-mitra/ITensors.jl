@@ -22,11 +22,16 @@ settings = Dict(
                                  "DMRG" => [
                                             "DMRG.md",
                                             "ProjMPO.md",
-                                            "ProjMPOSum.md"
+                                            "ProjMPOSum.md",
+                                            "Observer.md",
+                                            "DMRGObserver.md"
                                            ],
                                  "AutoMPO" => "AutoMPO.md"
                                 ],
-             "Advanced usage guide" => "AdvancedUsageGuide.md",
+             "Advanced usage guide" => [
+                                        "Advanced usage guide" => "AdvancedUsageGuide.md",
+                                        "Multithreading" => "Multithreading.md"
+                                       ]
            ],
   :format => Documenter.HTML(assets = ["assets/favicon.ico"],
                              prettyurls = false),

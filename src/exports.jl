@@ -9,13 +9,17 @@ export
 
 # NDTensors module
   # Types
+  Block,
   Spectrum,
   # Methods
-  disable_tblis!,
   eigs,
-  enable_tblis!,
   entropy,
   truncerror,
+  # Deprecated
+  addblock!,
+
+# ITensors.jl
+  index_id_rng,
 
 # argsdict/argsdict.jl
   argsdict,
@@ -29,12 +33,7 @@ export
 
 # global_variables.jl
   # Methods
-  disable_combine_contract!,
-  disable_warn_order!,
-  enable_combine_contract!,
-  get_warn_order,
-  set_warn_order!,
-  reset_warn_order!,
+
   # Macros
   @disable_warn_order,
   @reset_warn_order,
@@ -64,9 +63,11 @@ export
   replacetags!,
   setdir,
   setprime,
+  setspace,
   settags,
   sim,
   space,
+  splitblocks,
   tags,
   val,
 
@@ -91,6 +92,7 @@ export
   pushfirst,
   replaceind,
   replaceinds,
+  replaceprime,
   swapinds,
   setindex,
   swapind,
@@ -103,7 +105,6 @@ export
   ITensor,
   # Methods
   ⊙,
-  addblock!,
   addtags!,
   apply,
   array,
@@ -119,6 +120,7 @@ export
   δ,
   diagITensor,
   dot,
+  eachnzblock,
   firstind,
   filterinds,
   hadamard_product,
@@ -128,6 +130,7 @@ export
   hassameinds,
   ind,
   inds,
+  insertblock!,
   itensor,
   mul!,
   matrix,
@@ -156,7 +159,6 @@ export
   scale!,
   scalar,
   setelt,
-  setwarnorder!,
   store,
   setprime!,
   swapprime!,
@@ -254,6 +256,7 @@ export
   # Types
   AbstractObserver,
   DMRGObserver,
+  DMRGMeasurement,
   NoObserver,
   # Methods
   checkdone!,

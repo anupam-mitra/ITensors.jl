@@ -96,7 +96,7 @@ function svd(A::ITensor, Linds...; kwargs...)
     for b in nzblocks(UC)
       i1 = inds(UC)[1]
       i2 = inds(UC)[2]
-      newqn = -dir(i2)*qn(i1,b[1])
+      newqn = -dir(i2)*flux(i1 => Block(b[1]))
       setblockqn!(i2,newqn,b[2])
       setblockqn!(u,newqn,b[2])
     end
@@ -104,7 +104,7 @@ function svd(A::ITensor, Linds...; kwargs...)
     for b in nzblocks(VC)
       i1 = inds(VC)[1]
       i2 = inds(VC)[2]
-      newqn = -dir(i2)*qn(i1,b[1])
+      newqn = -dir(i2)*flux(i1 => Block(b[1]))
       setblockqn!(i2,newqn,b[2])
       setblockqn!(v,newqn,b[2])
     end
@@ -149,7 +149,7 @@ iterate(E::TruncEigen, ::Val{:r}) = (E.r, Val(:done))
 iterate(E::TruncEigen, ::Val{:done}) = nothing
 
 function eigen(A::ITensor{N}, Linds, Rinds; kwargs...) where {N}
-  @debug begin
+  @debug_check begin
     if hasqns(A)
       @assert flux(A) == QN()
     end
@@ -217,7 +217,7 @@ function eigen(A::ITensor{N}, Linds, Rinds; kwargs...) where {N}
     i1, i2 = inds(VC)
     for b in nzblocks(VC)
       if flux(VC, b) != QN()
-        new_flux = dir(i1)*qn(i1, b[1])
+        new_flux = dir(i1) * flux(i1 => Block(b[1]))
         setblockqn!(i2, new_flux, b[2])
         setblockqn!(d, new_flux, b[2])
       end
@@ -240,7 +240,7 @@ function eigen(A::ITensor{N}, Linds, Rinds; kwargs...) where {N}
   # The right eigenvectors, after being applied to A
   Vt = replaceinds(V, (Ris..., r), (Lis..., l))
 
-  @debug begin
+  @debug_check begin
     if hasqns(A)
       @assert flux(D) == QN()
       @assert flux(V) == QN()
@@ -336,7 +336,9 @@ function factorize_eigen(A::ITensor, Linds...; kwargs...)
   if !isnothing(delta_A2)
     # This assumes delta_A2 has indices:
     # (Lis..., prime(Lis)...)
-    A2 += replaceinds(delta_A2, prime(Lis), simLis)
+    delta_A2 = replaceinds(delta_A2, Lis, dag(simLis))
+    noprime!(delta_A2)
+    A2 += delta_A2
   end
   F = eigen(A2, Lis, simLis; ishermitian=true,
                              kwargs...)

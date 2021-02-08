@@ -1,9 +1,12 @@
 using Combinatorics
 using ITensors
+using Random
 using Test
 
+Random.seed!(1234)
+
 include("util.jl")
-include("../examples/gate_evolution/qubit.jl")
+include(joinpath(pkgdir(ITensors), "examples", "gate_evolution", "qubit.jl"))
 
 @testset "MPS Basics" begin
 
@@ -170,7 +173,7 @@ include("../examples/gate_evolution/qubit.jl")
   
   @testset "norm MPS" begin
     psi = randomMPS(sites,10)
-    psidag = ITensors.sim_linkinds(dag(psi))
+    psidag = sim(linkinds, dag(psi))
     psi² = ITensor(1)
     for j = 1:N
       psi² *= psidag[j] * psi[j]
@@ -188,7 +191,7 @@ include("../examples/gate_evolution/qubit.jl")
     for j in 1:N
       psi[j] .*= j
     end
-    psidag = ITensors.sim_linkinds(dag(psi))
+    psidag = sim(linkinds, dag(psi))
     psi² = ITensor(1)
     for j = 1:N
       psi² *= psidag[j] * psi[j]
@@ -237,6 +240,8 @@ include("../examples/gate_evolution/qubit.jl")
   end
 
   @testset "+ MPS with coefficients" begin
+    Random.seed!(1234)
+
     N = 20
     conserve_qns = true
 
@@ -628,16 +633,16 @@ end
   @testset "[first]siteind[s](::MPS/MPO, j::Int)" begin
     s = siteinds("S=1/2", 5)
     ψ = randomMPS(s)
-    @test firstsiteind(ψ, 3) == s[3]
+    @test siteind(first, ψ, 3) == s[3]
     @test siteind(ψ, 4) == s[4]
     @test isnothing(siteind(ψ, 4; plev = 1))
     @test siteinds(ψ, 3) == IndexSet(s[3])
     @test siteinds(ψ, 3; plev = 1) == IndexSet()
 
     M = randomMPO(s)
-    @test noprime(firstsiteind(M, 4)) == s[4]
-    @test firstsiteind(M, 4; plev = 0) == s[4]
-    @test firstsiteind(M, 4; plev = 1) == s[4]'
+    @test noprime(siteind(first, M, 4)) == s[4]
+    @test siteind(first, M, 4; plev = 0) == s[4]
+    @test siteind(first, M, 4; plev = 1) == s[4]'
     @test siteind(M, 4) == s[4]
     @test siteind(M, 4; plev = 0) == s[4]
     @test siteind(M, 4; plev = 1) == s[4]'
@@ -1065,7 +1070,7 @@ end
         ψ = product(gates, ψ0; cutoff = 1e-15)
         @test maxlinkdim(ψ) == 8
         prodψ = product(gates, prod(ψ0))
-        @test prod(ψ) ≈ prodψ
+        @test prod(ψ) ≈ prodψ rtol = 1e-12
       end
 
       M0 = MPO(s, "Id")
@@ -1073,7 +1078,7 @@ end
 
       @testset "Mixed state evolution" begin
         M = product(gates, M0; cutoff = 1e-15, maxdim = maxdim)
-        @test maxlinkdim(M) == 24
+        @test maxlinkdim(M) == 24 || maxlinkdim(M) == 25
         sM0 = siteinds(M0)
         sM = siteinds(M)
         for n in 1:N
@@ -1141,7 +1146,8 @@ end
       
       s0 = siteinds(M0)
       
-      M = apply(gates, M0; apply_dag = true, cutoff = 1e-15, maxdim = 500)
+      M = apply(gates, M0; apply_dag = true, cutoff = 1e-15,
+                maxdim = 500, svd_alg = "qr_iteration")
       
       s = siteinds(M)
       for n in 1:N
@@ -1364,6 +1370,40 @@ end
     @test sz1 ≈ qsz1
   end
 
+  @testset "inner of MPS with more than one site Index" begin
+    s = siteinds("S=½", 4)
+    sout = addtags.(s, "out")
+    sin = addtags.(s, "in")
+    sinds = IndexSet.(sout, sin)
+    Cs = combiner.(sinds)
+    cinds = combinedind.(Cs)
+    ψ = randomMPS(cinds)
+    @test norm(ψ) ≈ 1
+    @test inner(ψ, ψ) ≈ 1
+    ψ .*= dag.(Cs)
+    @test norm(ψ) ≈ 1
+    @test inner(ψ, ψ) ≈ 1
+  end
+
+  @testset "inner(::MPS, ::MPO, ::MPS) with more than one site Index" begin
+    N = 8
+    s = siteinds("S=1/2", N)
+    a = AutoMPO()
+    for j in 1:N-1
+      a .+= 0.5, "S+", j, "S-", j+1
+      a .+= 0.5, "S-", j, "S+", j+1
+      a .+=      "Sz", j, "Sz", j+1
+    end
+    H = MPO(a, s)
+    ψ = randomMPS(s, n -> isodd(n) ? "↑" : "↓", 10)
+    # Create MPO/MPS with pairs of sites merged
+    H2 = MPO([H[b] * H[b+1] for b in 1:2:N])
+    ψ2 = MPS([ψ[b] * ψ[b+1] for b in 1:2:N])
+    @test inner(ψ, ψ) ≈ inner(ψ2, ψ2)
+    @test inner(ψ', H, ψ) ≈ inner(ψ2', H2, ψ2)
+    @test_throws ErrorException inner(ψ2, ψ2')
+    @test_throws ErrorException inner(ψ2, H2, ψ2)
+  end
 end
 
 nothing

@@ -223,8 +223,27 @@ function tagstring(T::TagSet)
   return res
 end
 
-# TODO: add iteration
-#Base.iterate(ts::TagSet, args...) = iterate(data(ts), args...)
+"""
+    iterate(is::TagSet[, state])
+
+Iterate over the Tag's in a TagSet.
+
+# Example
+```jldoctest
+julia> using ITensors;
+
+julia> tagset = TagSet("l, tags");
+
+julia> for tag in tagset
+         println(tag)
+       end
+l
+tags
+```
+"""
+Base.iterate(ts::TagSet, state) = state < length(ts) ? (ts[state + 1], state + 1) : nothing
+
+Base.iterate(ts::TagSet) = (ts[1], 1)
 
 commontags(ts::TagSet) = ts
 
@@ -268,20 +287,20 @@ function readcpp(io::IO,::Type{TagSet}; kwargs...)
   return ts
 end
 
-function HDF5.write(parent::Union{HDF5File,HDF5Group},
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group},
                     name::AbstractString,
                     T::TagSet)
-  g = g_create(parent,name)
-  attrs(g)["type"] = "TagSet"
-  attrs(g)["version"] = 1
+  g = create_group(parent,name)
+  attributes(g)["type"] = "TagSet"
+  attributes(g)["version"] = 1
   write(g,"tags", tagstring(T))
 end
 
-function HDF5.read(parent::Union{HDF5File,HDF5Group},
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group},
                    name::AbstractString,
                    ::Type{TagSet})
-  g = g_open(parent,name)
-  if read(attrs(g)["type"]) != "TagSet"
+  g = open_group(parent,name)
+  if read(attributes(g)["type"]) != "TagSet"
     error("HDF5 group '$name' does not contain TagSet data")
   end
   tstring = read(g,"tags")
