@@ -2,16 +2,22 @@ using Test
 
 @testset "ITensors.jl" begin
   @testset "$filename" for filename in [
+    "NDTensors/runtests.jl",
+    "ContractionSequenceOptimization/runtests.jl",
     "tagset.jl",
     "smallstring.jl",
+    "symmetrystyle.jl",
     "index.jl",
     "indexset.jl",
+    "ndtensors.jl",
     "not.jl",
+    "itensor_scalar.jl",
     "itensor.jl",
     "itensor_slice.jl",
     "itensor_scalar_contract.jl",
     "itensor_combine_contract.jl",
     "broadcast.jl",
+    "emptyitensor.jl",
     "diagitensor.jl",
     "contract.jl",
     "combiner.jl",
@@ -35,12 +41,13 @@ using Test
     "qnitensor.jl",
     "qncombiner.jl",
     "qndiagitensor.jl",
+    "fermions.jl",
     "empty.jl",
     "qnmpo.jl",
     "readwrite.jl",
     "readme.jl",
     "examples.jl",
-   ]
+  ]
     println("Running $filename")
     include(filename)
   end

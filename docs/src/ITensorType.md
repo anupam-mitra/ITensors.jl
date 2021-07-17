@@ -11,15 +11,24 @@ ITensor
 ```@docs
 ITensor(::Type{<:Number}, ::ITensors.Indices)
 ITensor(::Type{<:Number}, ::UndefInitializer, ::ITensors.Indices)
+ITensor(::Type{ElT}, x::Number, inds::ITensors.Indices) where {ElT<:Number}
+ITensor(as::ITensors.AliasStyle, ::Type{ElT}, A::Array{<:Number}, inds::ITensors.Indices; kwargs...) where {ElT<:Number}
 randomITensor(::Type{<:Number}, ::ITensors.Indices)
-setelt(::IndexVal)
+onehot
+```
+
+## Dense View Constructors
+
+```@docs
+itensor(::Array{<:Number},::ITensors.Indices)
 ```
 
 ## QN BlockSparse Constructors
 
 ```@docs
 ITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
-ITensor(A::Array, inds::ITensors.QNIndexSet)
+ITensor(::ITensors.AliasStyle, ::Type{ElT}, A::Array{<:Number}, inds::ITensors.QNIndices; tol=0) where {ElT<:Number}
+ITensor(::Type{<:Number}, ::UndefInitializer, ::QN, ::ITensors.Indices)
 ```
 
 ## Empty Constructors
@@ -37,9 +46,9 @@ emptyITensor(::Type{<:Number}, ::ITensors.QNIndices)
 ## Diagonal constructors
 
 ```@docs
-diagITensor(::Type{<:Number}, ::ITensors.Indices)
-diagITensor(::Vector{<:Number}, ::ITensors.Indices)
-diagITensor(::Number, ::ITensors.Indices)
+diagITensor(::Type{ElT}, is::ITensors.Indices) where {ElT}
+diagITensor(as::ITensors.AliasStyle, ::Type{ElT}, v::Vector{<:Number}, is...) where {ElT<:Number}
+diagITensor(as::ITensors.AliasStyle, ::Type{ElT}, x::Number, is...) where {ElT<:Number}
 delta(::Type{<:Number}, ::ITensors.Indices)
 ```
 
@@ -53,18 +62,16 @@ delta(::Type{<:Number}, ::QN, ::ITensors.Indices)
 ## Convert to Array
 
 ```@docs
-Array{ElT, N}(::ITensor{N}, ::Vararg{Index, N}) where {ElT, N}
+Array{ElT, N}(::ITensor, ::Vararg{Index, N}) where {ElT, N}
 array(::ITensor)
-matrix(::ITensor{2})
-vector(::ITensor{1})
+matrix(::ITensor)
+vector(::ITensor)
 ```
 
 ## Getting and setting elements
 
 ```@docs
 getindex(::ITensor, ::Any...)
-getindex(::ITensor{N}, ::Vararg{Int,N}) where {N}
-setindex!(::ITensor, ::Number, ::Any...)
 setindex!(::ITensor, ::Number, ::Int...)
 ```
 
@@ -73,6 +80,7 @@ setindex!(::ITensor, ::Number, ::Int...)
 ```@docs
 inds(::ITensor)
 ind(::ITensor, ::Int)
+dir(::ITensor, ::Index)
 ```
 
 ## [Priming and tagging](@id Priming_and_tagging_ITensor)
@@ -90,7 +98,7 @@ settags(::ITensor, ::Any...)
 swaptags(::ITensor, ::Any...)
 ```
 
-## IndexSet set operations
+## Index collections set operations
 
 ```@docs
 commoninds
@@ -123,10 +131,11 @@ exp(::ITensor, ::Any, ::Any)
 ## Decompositions
 ```@docs
 svd(::ITensor, ::Any...)
+eigen(::ITensor, ::Any, ::Any)
 factorize(::ITensor, ::Any...)
 ```
 
-## Operations
+## Memory operations
 
 ```@docs
 permute(::ITensor, ::Any)

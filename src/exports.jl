@@ -1,13 +1,13 @@
 export
-# From external modules
+  # From external modules
   # LinearAlgebra
   tr,
 
-# Modules
+  # Modules
   LinearAlgebra,
   NDTensors,
 
-# NDTensors module
+  # NDTensors module
   # Types
   Block,
   Spectrum,
@@ -18,20 +18,20 @@ export
   # Deprecated
   addblock!,
 
-# ITensors.jl
+  # ITensors.jl
   index_id_rng,
 
-# argsdict/argsdict.jl
+  # argsdict/argsdict.jl
   argsdict,
 
-# decomp.jl
+  # decomp.jl
   eigen,
   factorize,
   polar,
   qr,
   svd,
 
-# global_variables.jl
+  # global_variables.jl
   # Methods
 
   # Macros
@@ -39,7 +39,7 @@ export
   @reset_warn_order,
   @set_warn_order,
 
-# index.jl
+  # index.jl
   # Types
   Index,
   IndexVal,
@@ -47,6 +47,8 @@ export
   dag,
   dim,
   dir,
+  eachval,
+  eachindval,
   hasid,
   hasind,
   hasplev,
@@ -71,7 +73,7 @@ export
   tags,
   val,
 
-# indexset.jl
+  # indexset.jl
   # Types
   IndexSet,
   Order,
@@ -79,8 +81,6 @@ export
   allhastags,
   anyhastags,
   dims,
-  firstintersect,
-  firstsetdiff,
   getfirst,
   mapprime,
   maxdim,
@@ -100,7 +100,7 @@ export
   swapprime,
   swaptags,
 
-# itensor.jl
+  # itensor.jl
   # Types
   ITensor,
   # Methods
@@ -117,7 +117,9 @@ export
   complex!,
   delta,
   dense,
+  denseblocks,
   δ,
+  diagitensor,
   diagITensor,
   dot,
   eachnzblock,
@@ -144,6 +146,7 @@ export
   nzblocks,
   nzblock,
   nnz,
+  onehot,
   order,
   permute,
   prime!,
@@ -159,7 +162,7 @@ export
   scale!,
   scalar,
   setelt,
-  store,
+  storage,
   setprime!,
   swapprime!,
   settags!,
@@ -171,16 +174,16 @@ export
   vector,
   emptyITensor,
 
-# iterativesolvers.jl
+  # iterativesolvers.jl
   davidson,
 
-# not.jl
+  # not.jl
   not,
 
-# readwrite.jl
+  # readwrite.jl
   readcpp,
 
-# tagset.jl
+  # tagset.jl
   # Types
   TagSet,
   # Macros
@@ -189,10 +192,10 @@ export
   addtags,
   hastags,
 
-# mps/dmrg.jl
+  # mps/dmrg.jl
   dmrg,
 
-# mps/abstractmps.jl
+  # mps/abstractmps.jl
   # Macros
   @preserve_ortho,
   # Methods
@@ -213,9 +216,11 @@ export
   movesite,
   movesites,
   ortho_lims,
+  reset_ortho_lims!,
+  set_ortho_lims!,
   siteinds,
 
-# mps/mpo.jl
+  # mps/mpo.jl
   # Types
   MPO,
   # Methods
@@ -223,16 +228,21 @@ export
   maxlinkdim,
   orthogonalize,
   orthogonalize!,
+  outer,
+  projector,
   randomMPO,
+  truncate,
   truncate!,
   unique_siteind,
   unique_siteinds,
 
-# mps/mps.jl
+  # mps/mps.jl
   # Types
   MPS,
   # Methods
   ⋅,
+  correlation_matrix,
+  expect,
   inner,
   isortho,
   linkdim,
@@ -252,7 +262,7 @@ export
   swapbondsites,
   totalqn,
 
-# mps/observer.jl
+  # mps/observer.jl
   # Types
   AbstractObserver,
   DMRGObserver,
@@ -265,7 +275,7 @@ export
   measurements,
   truncerrors,
 
-# mps/projmpo.jl
+  # mps/projmpo.jl
   ProjMPO,
   lproj,
   product,
@@ -273,13 +283,13 @@ export
   noiseterm,
   position!,
 
-# mps/projmposum.jl
+  # mps/projmposum.jl
   ProjMPOSum,
 
-# mps/projmpo_mps.jl
+  # mps/projmpo_mps.jl
   ProjMPO_MPS,
 
-# mps/sweeps.jl
+  # mps/sweeps.jl
   Sweeps,
   cutoff,
   cutoff!,
@@ -294,19 +304,28 @@ export
   noise,
   noise!,
   nsweep,
+  setmaxdim!,
+  setmindim!,
+  setcutoff!,
+  setnoise!,
   sweepnext,
 
-# physics/autompo.jl
+  # physics/autompo.jl
   AutoMPO,
+  OpSum,
   add!,
 
-# physics/lattices.jl
+  # physics/fermions.jl
+  fparity,
+  isfermionic,
+
+  # physics/lattices.jl
   Lattice,
   LatticeBond,
   square_lattice,
   triangular_lattice,
 
-# physics/sitetype.jl
+  # physics/sitetype.jl
   SiteType,
   @SiteType_str,
   StateName,
@@ -320,7 +339,7 @@ export
   @TagType_str,
   has_fermion_string,
 
-# qn/qn.jl
+  # qn/qn.jl
   # Types
   QN,
   # Methods
@@ -329,7 +348,7 @@ export
   modulus,
   val,
 
-# qn/qnindex.jl
+  # qn/qnindex.jl
   flux,
   hasqns,
   nblocks,

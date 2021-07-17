@@ -10,20 +10,27 @@
 @deprecate use_combine_contract() ITensors.using_combine_contract()
 @deprecate use_debug_checks() ITensors.using_debug_checks()
 
+# index.jl
+@deprecate getindex(i::Index, n::Int) IndexVal(i, n)
 
 # indexset.jl
 @deprecate store(is::IndexSet) data(is)
+@deprecate firstintersect(is...; kwargs...) getfirst(intersect(is...); kwargs...)
+@deprecate firstsetdiff(is...; kwargs...) getfirst(setdiff(is...); kwargs...)
 
 # itensor.jl
 @deprecate commonindex(args...; kwargs...) commonind(args...; kwargs...)
+@deprecate emptyITensor(::Type{Any}) emptyITensor()
 @deprecate findindex(args...; kwargs...) firstind(args...; kwargs...)
 @deprecate findinds(args...; kwargs...) inds(args...; kwargs...)
 @deprecate linkindex(args...; kwargs...) linkind(args...; kwargs...)
 @deprecate matmul(A::ITensor, B::ITensor) product(A, B)
 @deprecate replaceindex!(args...; kwargs...) replaceind!(args...; kwargs...)
 @deprecate siteindex(args...; kwargs...) siteind(args...; kwargs...)
+@deprecate store(A::ITensor) storage(A)
+@deprecate setstore!(T::ITensor, st) setstorage!(T, st) false
+@deprecate setstore(T::ITensor, st) setstorage(T, st) false
 @deprecate uniqueindex(args...; kwargs...) uniqueind(args...; kwargs...)
-
 
 # mps/abstractmps.jl
 @deprecate orthoCenter(args...; kwargs...) orthocenter(args...; kwargs...)
@@ -44,9 +51,22 @@
 @deprecate simlinks!(args...; kwargs...) ITensors.sim_linkinds!(args...; kwargs...)
 @deprecate mul(A::AbstractMPS, B::AbstractMPS; kwargs...) contract(A, B; kwargs...)
 
+# mps/mpo.jl
+@deprecate MPO(A::MPS; kwargs...) outer(A, A; kwargs...)
+
+# mps/mps.jl
+@deprecate randomMPS(sites::Vector{<:Index}, linkdims::Integer) randomMPS(
+  sites; linkdims=linkdims
+)
+@deprecate randomMPS(ElType::Type, sites::Vector{<:Index}, linkdims::Integer) randomMPS(
+  ElType, sites; linkdims=linkdims
+)
+@deprecate randomMPS(sites::Vector{<:Index}, state, linkdims::Integer) randomMPS(
+  sites, state; linkdims=linkdims
+)
+
 # physics/autompo.jl
 @deprecate toMPO(args...; kwargs...) MPO(args...; kwargs...)
 
 # qn/qn.jl
 @deprecate store(qn::QN) data(qn)
-

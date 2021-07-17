@@ -1,24 +1,19 @@
 using ITensors
 
-function main(; Nx = 6,
-                Ny = 3,
-                U = 4.0,
-                t = 1.0)
+function main(; Nx=6, Ny=3, U=4.0, t=1.0)
   N = Nx * Ny
 
   sweeps = Sweeps(10)
-  maxdim!(sweeps, 100, 200, 400, 800, 1600)
-  cutoff!(sweeps, 1e-6)
-  noise!(sweeps, 1e-6, 1e-7, 1e-8, 0.0)
+  setmaxdim!(sweeps, 100, 200, 400, 800, 1600)
+  setcutoff!(sweeps, 1e-6)
+  setnoise!(sweeps, 1e-6, 1e-7, 1e-8, 0.0)
   @show sweeps
 
-  sites = siteinds("Electron", N;
-                   conserve_qns = true)
+  sites = siteinds("Electron", N; conserve_qns=true)
 
-  lattice = square_lattice(Nx, Ny;
-                           yperiodic = true)
+  lattice = square_lattice(Nx, Ny; yperiodic=true)
 
-  ampo = AutoMPO()
+  ampo = OpSum()
   for b in lattice
     ampo += -t, "Cdagup", b.s1, "Cup", b.s2
     ampo += -t, "Cdagup", b.s2, "Cup", b.s1
@@ -28,7 +23,7 @@ function main(; Nx = 6,
   for n in 1:N
     ampo += U, "Nupdn", n
   end
-  H = MPO(ampo,sites)
+  H = MPO(ampo, sites)
 
   # Half filling
   state = [isodd(n) ? "Up" : "Dn" for n in 1:N]
@@ -38,14 +33,13 @@ function main(; Nx = 6,
   # numbers as `state`
   psi0 = randomMPS(sites, state)
 
-  energy,psi = dmrg(H, psi0, sweeps)
+  energy, psi = dmrg(H, psi0, sweeps)
   @show t, U
   @show flux(psi)
   @show maxlinkdim(psi)
   @show energy
 
-  return
+  return nothing
 end
 
 main()
-
