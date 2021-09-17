@@ -99,6 +99,14 @@ function BlockSparseTensor(
   return tensor(storage, inds)
 end
 
+function BlockSparseTensor(
+  x::Number, blocks::Vector{BlockT}, inds
+) where {BlockT<:Union{Block,NTuple}}
+  boffs, nnz = blockoffsets(blocks, inds)
+  storage = BlockSparse(x, boffs, nnz)
+  return tensor(storage, inds)
+end
+
 #complex(::Type{BlockSparseTensor{ElT,N,StoreT,IndsT}}) where {ElT<:Number,N,StoreT<:BlockSparse
 #  = Tensor{ElT,N,StoreT,IndsT} where {StoreT<:BlockSparse}
 
@@ -868,7 +876,9 @@ function _threaded_contract_blockoffsets(
   labels1_to_labels2, labels1_to_labelsR, labels2_to_labelsR = contract_labels(
     labels1, labels2, labelsR
   )
-  contraction_plans = [Tuple{Block{N1},Block{N2},Block{NR}}[] for _ in 1:nthreads()]
+  contraction_plans = Vector{Tuple{Block{N1},Block{N2},Block{NR}}}[
+    Tuple{Block{N1},Block{N2},Block{NR}}[] for _ in 1:nthreads()
+  ]
 
   #
   # Reserve some capacity
@@ -911,7 +921,7 @@ function _threaded_contract_blockoffsets(
     end
   end
 
-  contraction_plan = vcat(contraction_plans...)
+  contraction_plan = reduce(vcat, contraction_plans)
   blockoffsetsR = BlockOffsets{NR}()
   nnzR = 0
   for (_, _, blockR) in contraction_plan

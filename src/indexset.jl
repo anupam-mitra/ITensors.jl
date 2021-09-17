@@ -22,7 +22,48 @@ const IndexSet{IndexT<:Index} = Vector{IndexT}
 const IndexTuple{IndexT<:Index} = Tuple{Vararg{IndexT}}
 
 # Definition to help with generic code
-const Indices{IndexT<:Index} = Union{IndexSet{IndexT},IndexTuple{IndexT}}
+const Indices{IndexT<:Index} = Union{Vector{IndexT},Tuple{Vararg{IndexT}}}
+
+# Flatten combinations of tuples and vectors into a single collection
+# of indices
+tuple_vcat(t::Tuple) = t
+tuple_vcat() = ()
+tuple_vcat(t) = (t,)
+tuple_vcat(a, args...) = (tuple_vcat(a)..., tuple_vcat(args...)...)
+
+tuple_to_vector(t::Tuple) = collect(t)
+tuple_to_vector(t) = t
+
+function _narrow_eltype(v::Vector{T}) where {T}
+  return convert(Vector{mapreduce(typeof, promote_type, v)}, v)
+end
+narrow_eltype(v::Vector{T}) where {T} = isconcretetype(T) ? v : _narrow_eltype(v)
+
+push_or_append!(v, x::Union{Vector,Tuple}) = append!(v, x)
+push_or_append!(v, x) = push!(v, x)
+
+function _indices(is::Vector)
+  isempty(is) && return is
+  is_flat = Index[]
+  for i in is
+    push_or_append!(is_flat, i)
+  end
+  return narrow_eltype(is_flat)
+end
+indices(is::Vector{<:Index}) = narrow_eltype(is)
+
+_indices(is::Tuple{Vararg{<:Index}}) = is
+_indices(is::Tuple{Vararg{Union{<:Vector,<:Index}}}) = vcat(is...)
+_indices(is::Tuple{Vararg{Union{<:Tuple,<:Index}}}) = tuple_vcat(is...)
+_indices(is::Tuple{Vararg{Union{<:Tuple,<:Vector,<:Index}}}) = indices(tuple_to_vector.(is))
+indices(is::Tuple{Vararg{<:Index}}) = is
+indices(is::Tuple) = _indices(is)
+indices(is::Union{<:Tuple,<:Vector,<:Index}...) = indices(is)
+function indices(is::Vector)
+  # This narrows the type. Also handles the empty case.
+  all(i -> i isa Index, is) && return narrow_eltype(is)
+  return _indices(is)
+end
 
 # To help with backwards compatibility
 IndexSet(inds::IndexSet) = inds
@@ -186,6 +227,7 @@ fmatch("s")(i) == true
 """
 fmatch(is::Indices) = in(is)
 fmatch(is::Index...) = fmatch(is)
+fmatch(i::Index) = fmatch((i,))
 
 fmatch(pl::Int) = hasplev(pl)
 
@@ -583,7 +625,7 @@ function compute_contraction_labels(Ais::Tuple, Bis::Tuple)
     if Ais_i == Bis_j
       if have_qns && (dir(Ais_i) ≠ -dir(Bis_j))
         error(
-          "Attempting to contract IndexSet:\n$(Ais)with IndexSet:\n$(Bis)QN indices must have opposite direction to contract.",
+          "Attempting to contract IndexSet:\n\n$(Ais)\n\nwith IndexSet:\n\n$(Bis)\n\nQN indices must have opposite direction to contract, but indices:\n\n$(Ais_i)\n\nand:\n\n$(Bis_j)\n\ndo not have opposite directions.",
         )
       end
       Alabels[i] = Blabels[j] = -(1 + ncont)

@@ -125,6 +125,8 @@ include("physics/site_types/spinone.jl")
 include("physics/site_types/fermion.jl")
 include("physics/site_types/electron.jl")
 include("physics/site_types/tj.jl")
+include("physics/site_types/qudit.jl") # EXPERIMENTAL
+include("physics/site_types/boson.jl") # EXPERIMENTAL
 include("physics/fermions.jl")
 include("physics/autompo.jl")
 
@@ -155,10 +157,10 @@ end
 
 #####################################
 # Precompile certain functions
-# (generated from precompile/make_precompile.jl
-# using SnoopCompile.jl)
 #
-#include("../precompile/precompile.jl")
-#_precompile_()
+#if Base.VERSION >= v"1.4.2"
+#  include("precompile.jl")
+#  _precompile_()
+#end
 
 end # module ITensors

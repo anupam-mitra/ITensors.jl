@@ -11,8 +11,12 @@ settings = Dict(
     "Getting Started with ITensor" => [
       "Installing Julia and ITensor" => "getting_started/Installing.md",
       "Running ITensor and Julia Codes" => "getting_started/RunningCodes.md",
-      "Tutorials" => "getting_started/Tutorials.md",
       "Next Steps" => "getting_started/NextSteps.md",
+    ],
+    "Tutorials" => [
+      "DMRG" => "tutorials/DMRG.md",
+      "Quantum Number Conserving DMRG" => "tutorials/QN_DMRG.md",
+      "MPS Time Evolution" => "tutorials/MPSTimeEvolution.md",
     ],
     "Code Examples" => [
       "ITensor Examples" => "examples/ITensor.md",
@@ -37,6 +41,11 @@ settings = Dict(
       ],
       "OpSum (AutoMPO)" => "OpSum.md",
     ],
+    "Frequently Asked Questions" => [
+      "Programming Language (Julia, C++, ...) FAQs" => "faq/JuliaAndCpp.md",
+      "DMRG FAQs" => "faq/DMRG.md",
+      "ITensor Development FAQs" => "faq/Development.md",
+    ],
     "Upgrade guides" => ["Upgrading from 0.1 to 0.2" => "UpgradeGuide_0.1_to_0.2.md"],
     "ITensor indices and Einstein notation" => "Einsum.md",
     "Advanced usage guide" => [
@@ -45,6 +54,7 @@ settings = Dict(
       "Symmetric (QN conserving) tensors: background and usage" => "QNTricks.md",
       "Timing and profiling" => "CodeTiming.md",
       "Contraction sequence optimization" => "ContractionSequenceOptimization.md",
+      "HDF5 File Formats" => "HDF5FileFormats.md",
     ],
   ],
   :format => Documenter.HTML(; assets=["assets/favicon.ico"], prettyurls=false),

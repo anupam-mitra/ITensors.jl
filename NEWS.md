@@ -1,4 +1,4 @@
-This file is a (mostly) comprehensive list of changes made in each release of ITensors.jl (for a completely comprehensive but more verbose list, see the [commit history on Github](https://github.com/ITensor/ITensors.jl/commits/main).
+This file is a (mostly) comprehensive list of changes made in each release of ITensors.jl. For a completely comprehensive but more verbose list, see the [commit history on Github](https://github.com/ITensor/ITensors.jl/commits/main).
 
 While we are in v0.x of the package, we will follow the convention that updating from v0.x.y to v0.x.(y+1) (for example v0.1.15 to v0.1.16) should not break your code, unless you are using internal/undocumented features of the code, while updating from `v0.x.y` to `v0.(x+1).y` might break your code, though we will try to add deprecation warnings when possible, such as for simple cases where the name of a function changes.
 
@@ -6,9 +6,30 @@ Note that as of Julia v1.5, in order to see deprecation warnings you will need t
 
 After we release v1 of the package, we will start following [semantic versioning](https://semver.org).
 
+ITensor v0.2.6 Release Notes
+==============================
+
+- Add Qudit site type with QNs as well as Boson alias (#727) 
+- Tighten accuracy cutoff for OpSum/AutoMPO (#726)
+- Add support for complex data written by C++ ITensor for block sparse tensors (#724)
+
+ITensor v0.2.5 Release Notes
+==============================
+
+- Fixed bug involving missing default case for state function (#719)
+- Add support for reading complex ITensors written from C++ (#720)
+- Fix HDF5 read compatilibity between ITensors v0.1 and v0.2 (#715) (@tschneider) 
+- Improve inference in NDTensors contraction and start writing a new precompile file (off by default) (#655)
+
 ITensor v0.2.4 Release Notes
 ==============================
 
+- Fix state function when overloading version that accepts an Index (#711)
+- Started work on FAQs (#709)
+- Add denseblocks definition for Diag storage (#710)
+- Code examples about making an array from an ITensor, QR with postive R, and sampling an MPS (#705)
+- Prepend site type functions with ITensors to make it clearer to users how they should write their own overloads (#704)
+- Fix issue with Index arrow for QN case of `correlation_matrix` (#702)
 - Add `sim(::Pair{<:Index})` (#701)
 - Add `norm(::EmptyStorage)` (#699) 
 
