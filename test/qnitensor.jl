@@ -120,6 +120,23 @@ Random.seed!(1234)
     @test_throws BoundsError flux(T, Block(3))
   end
 
+  @testset "trace (tr)" begin
+    si = [QN(0) => 1, QN(1) => 2, QN(2) => 3]
+    sj = [QN(0) => 2, QN(1) => 3, QN(2) => 4]
+    sk = [QN(0) => 3, QN(1) => 4, QN(2) => 5]
+    sl = [QN(0) => 2]
+    i, j, k, l = Index.((si, sj, sk, sl), ("i", "j", "k", "l"))
+    T = randomITensor(dag(j), k', i', dag(k), j', dag(i))
+    trT1 = tr(T)
+    trT2 = (T * δ(i, dag(i)') * δ(j, dag(j)') * δ(k, dag(k)'))[]
+    @test trT1 ≈ trT2
+
+    T = randomITensor(dag(j), k', i', l, dag(k), j', dag(i))
+    trT1 = tr(T)
+    trT2 = T * δ(i, dag(i)') * δ(j, dag(j)') * δ(k, dag(k)')
+    @test trT1 ≈ trT2
+  end
+
   @testset "QN ITensor Array constructor view behavior" begin
     d = 2
     i = Index([QN(0) => d ÷ 2, QN(1) => d ÷ 2])
@@ -1058,7 +1075,7 @@ Random.seed!(1234)
       for b in nzblocks(V)
         @test flux(V, b) == QN(0)
       end
-      @test U * S * V ≈ A atol = 1e-14
+      @test U * S * V ≈ A atol = 1e-12
     end
 
     @testset "svd example 4" begin
@@ -1324,9 +1341,68 @@ Random.seed!(1234)
       @test isapprox(err, spec.truncerr; rtol=1e-6)
     end
 
+    # This test happened to have different behavior because of an
+    # accidental degeneracy in the singular values with a change
+    # in the random number generator intoduced in Julia 1.7
+    if (ElT == Float64) && (VERSION ≥ v"1.7.0-0")
+      @testset "svd truncation example 5 (accidental degeneracy)" begin
+        i = Index(QN(0, 2) => 2, QN(1, 2) => 3; tags="i")
+        j = settags(i, "j")
+        copy!(
+          Random.default_rng(),
+          Xoshiro(
+            0x4ea8944fb1006ec4, 0xec60c93e7daf5295, 0x7c967091b08e72b3, 0x13bc39357cddea97
+          ),
+        )
+        A = randomITensor(ElT, QN(1, 2), i, j, dag(i'), dag(j'))
+
+        maxdim = 4
+        U, S, V, spec = svd(A, i, j'; utags="x", vtags="y", maxdim=maxdim)
+
+        @test storage(U) isa NDTensors.BlockSparse
+        @test storage(S) isa NDTensors.DiagBlockSparse
+        @test storage(V) isa NDTensors.BlockSparse
+
+        u = commonind(S, U)
+        v = commonind(S, V)
+
+        @test hastags(u, "x")
+        @test hastags(v, "y")
+
+        @test hassameinds(U, (i, j', u))
+        @test hassameinds(V, (i', j, v))
+
+        for b in nzblocks(A)
+          @test flux(A, b) == QN(1, 2)
+        end
+        for b in nzblocks(U)
+          @test flux(U, b) == QN(0, 2)
+        end
+        for b in nzblocks(S)
+          @test flux(S, b) == QN(1, 2)
+        end
+        for b in nzblocks(V)
+          @test flux(V, b) == QN(0, 2)
+        end
+
+        @test minimum(dims(S)) == maxdim - 1
+        @test_broken minimum(dims(S)) == length(spec.eigs)
+        @test minimum(dims(S)) < dim(i) * dim(j)
+
+        _, Sfull, _ = svd(A, i, j'; utags="x", vtags="y")
+        s = sort(diag(array(Sfull)); rev=true)
+        @test (s[4] - s[5]) / norm(s) < 1e-4
+
+        Ap = U * S * V
+        err = 1 - (Ap * dag(Ap))[] / (A * dag(A))[]
+        @test_broken isapprox(err, spec.truncerr; rtol=1e-6)
+      end
+    end
+
     @testset "svd truncation example 5" begin
       i = Index(QN(0, 2) => 2, QN(1, 2) => 3; tags="i")
       j = settags(i, "j")
+      Random.seed!(123)
       A = randomITensor(ElT, QN(1, 2), i, j, dag(i'), dag(j'))
 
       maxdim = 4
@@ -1593,30 +1669,6 @@ Random.seed!(1234)
       A² = A' * A
       @test dense(A²) ≈ dense(A') * dense(A)
       @test_throws ErrorException A' * dag(A)
-    end
-
-    @testset "Contraction resulting in no blocks with threading bug" begin
-      i = Index([QN(0) => 1, QN(1) => 1])
-      A = emptyITensor(i', dag(i))
-      B = emptyITensor(i', dag(i))
-      A[i' => 1, i => 1] = 11.0
-      B[i' => 2, i => 2] = 22.0
-
-      using_threaded_blocksparse = ITensors.disable_threaded_blocksparse()
-      C1 = A' * B
-      ITensors.enable_threaded_blocksparse()
-      C2 = A' * B
-      if using_threaded_blocksparse
-        ITensors.enable_threaded_blocksparse()
-      else
-        ITensors.disable_threaded_blocksparse()
-      end
-
-      @test nnzblocks(C1) == 0
-      @test nnzblocks(C2) == 0
-      @test nnz(C1) == 0
-      @test nnz(C2) == 0
-      @test C1 ≈ C2
     end
 
     @testset "Contraction with scalar ITensor" begin
