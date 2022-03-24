@@ -5,7 +5,7 @@ using ITensors, Test
 
   @testset "Star in operator strings" begin
     sites = siteinds("S=1/2", N)
-    @test_throws ArgumentError op(sites, "Sp", 1)
+    #@test_throws ArgumentError op(sites, "Sp", 1)
     @test sites[1] isa Index
     Sz = op(sites, "Sz", 2)
     SzSz = op(sites, "Sz * Sz", 2)
@@ -15,13 +15,62 @@ using ITensors, Test
     @test SySy ≈ product(Sy, Sy)
 
     sites = siteinds("S=1", N)
-    @test_throws ArgumentError op(sites, "Sp", 1)
+    #@test_throws ArgumentError op(sites, "Sp", 1)
     Sz = op(sites, "Sz", 2)
     SzSz = op(sites, "Sz * Sz", 2)
     @test SzSz ≈ product(Sz, Sz)
     Sy = op(sites, "Sy", 2)
     SySy = op(sites, "Sy * Sy", 2)
     @test SySy ≈ product(Sy, Sy)
+    SzSySz = op(sites, "Sz * Sy * Sz", 2)
+    @test SzSySz ≈ product(Sz, product(Sy, Sz))
+  end
+
+  @testset "+/- in operator strings" begin
+    q = siteind("Qudit"; dim=5)
+    Amat = array(op("a", q))
+    Adagmat = array(op("a†", q))
+
+    x = Amat - Adagmat
+    @test x ≈ array(op("a - a†", q))
+    x = Amat * Adagmat - Adagmat
+    @test x ≈ array(op("a * a† - a†", q))
+    @test x ≈ array(op("a * a† - a†", q))
+    x = Adagmat * Adagmat * Amat * Amat
+    @test x ≈ array(op("a† * a† * a * a", q))
+
+    q = siteind("S=1/2")
+    Sp = array(op("S+", q))
+    Sm = array(op("S-", q))
+    Sx = array(op("Sx", q))
+    Sy = array(op("Sy", q))
+    Sz = array(op("Sz", q))
+    x = Sp + Sm
+    @test x ≈ array(op("S+ + S-", q))
+    x = Sp - Sm
+    @test x ≈ array(op("S+ - S-", q))
+    x = Sp - Sm - Sp
+    @test x ≈ array(op("S+ - S- - S+", q))
+    x = Sp * Sm + Sm * Sp
+    @test x ≈ array(op("S+ * S- + S- * S+", q))
+    @test x ≈ array(op("S+ * S- + S-*S+", q))
+    x = Sp * Sm - Sm * Sp
+    @test x ≈ array(op("S+ * S- - S- * S+", q))
+    @test x ≈ array(op("S+ * S- - S- * S+", q))
+    x = Sp * Sm + Sm * Sp + Sz * Sx * Sy
+    @test x ≈ array(op("S+ * S- + S- * S+ + Sz * Sx * Sy", q))
+    x = Sp * Sm - Sm * Sp + Sz * Sx * Sy
+    @test x ≈ array(op("S+ * S- - S- * S+ + Sz * Sx * Sy", q))
+    x = Sp * Sm - Sm * Sp - Sz * Sx * Sy
+    @test x ≈ array(op("S+ * S- - S- * S+ - Sz * Sx * Sy", q))
+
+    #q = siteind("Qubit")
+    #R = array(op("Rx", q; θ = 0.1))
+    #H = array(op("H", q))
+    #Y = array(op("Y", q))
+    #x = H * R + Y + R
+    #@test x ≈ array(op("H * Rx + Y + Rx", q; θ = 0.1))
+
   end
 
   @testset "Custom SiteType using op" begin
@@ -337,13 +386,51 @@ using ITensors, Test
       n = parse(Int, String(N))
       st = zeros(dim(s))
       st[n + 1] = 1.0
-      return st
+      return itensor(st, s)
     end
 
     s = siteind("MyQudit"; dim=3)
     v0 = state(s, "0")
     v1 = state(s, "1")
     v2 = state(s, "2")
+    @test v0 == state("0", s)
+    @test v1 == state("1", s)
+    @test v2 == state("2", s)
+    @test dim(v0) == 3
+    @test dim(v1) == 3
+    @test dim(v2) == 3
+    @test v0[s => 1] == 1
+    @test v0[s => 2] == 0
+    @test v0[s => 3] == 0
+    @test v1[s => 1] == 0
+    @test v1[s => 2] == 1
+    @test v1[s => 3] == 0
+    @test v2[s => 1] == 0
+    @test v2[s => 2] == 0
+    @test v2[s => 3] == 1
+    @test_throws BoundsError state(s, "3")
+  end
+
+  @testset "state with variable dimension (deprecated)" begin
+    ITensors.space(::SiteType"MyQudit2"; dim=2) = dim
+
+    # XXX: This syntax is deprecated, only testing for
+    # backwards compatibility. Should return the
+    # ITensor `itensor(st, s)`.
+    function ITensors.state(::StateName{N}, ::SiteType"MyQudit2", s::Index) where {N}
+      n = parse(Int, String(N))
+      st = zeros(dim(s))
+      st[n + 1] = 1.0
+      return st
+    end
+
+    s = siteind("MyQudit2"; dim=3)
+    v0 = state(s, "0")
+    v1 = state(s, "1")
+    v2 = state(s, "2")
+    @test v0 == state("0", s)
+    @test v1 == state("1", s)
+    @test v2 == state("2", s)
     @test dim(v0) == 3
     @test dim(v1) == 3
     @test dim(v2) == 3
@@ -366,6 +453,22 @@ using ITensors, Test
     end
     s = siteind("Xev")
     @test state(s, "0") ≈ ITensor([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], s)
+  end
+
+  @testset "function applied to a gate" begin
+    s = siteinds("Qubit", 2)
+
+    θ = 0.1
+    rx = array(op("Rx", s[1]; θ=0.1))
+    exp_rx = exp(rx)
+    gtest = op(x -> exp(x), "Rx", s[1]; θ=0.1)
+    @test exp_rx ≈ array(op(x -> exp(x), "Rx", s[1]; θ=0.1))
+    @test exp_rx ≈ array(op(x -> exp(x), ("Rx", 1, (θ=0.1,)), s))
+
+    cx = 0.1 * reshape(array(op("CX", s[1], s[2])), (4, 4))
+    exp_cx = reshape(exp(cx), (2, 2, 2, 2))
+    @test exp_cx ≈ array(op(x -> exp(0.1 * x), "CX", s[1], s[2]))
+    @test exp_cx ≈ array(op(x -> exp(0.1 * x), ("CX", (1, 2)), s))
   end
 end
 

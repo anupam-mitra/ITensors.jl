@@ -11,6 +11,7 @@ settings = Dict(
     "Getting Started with ITensor" => [
       "Installing Julia and ITensor" => "getting_started/Installing.md",
       "Running ITensor and Julia Codes" => "getting_started/RunningCodes.md",
+      "Enabling Debug Checks" => "getting_started/DebugChecks.md",
       "Next Steps" => "getting_started/NextSteps.md",
     ],
     "Tutorials" => [
@@ -45,6 +46,7 @@ settings = Dict(
       "Programming Language (Julia, C++, ...) FAQs" => "faq/JuliaAndCpp.md",
       "DMRG FAQs" => "faq/DMRG.md",
       "ITensor Development FAQs" => "faq/Development.md",
+      "Relationship of ITensor to other tensor libraries FAQs" => "faq/RelationshipToOtherLibraries.md",
     ],
     "Upgrade guides" => ["Upgrading from 0.1 to 0.2" => "UpgradeGuide_0.1_to_0.2.md"],
     "ITensor indices and Einstein notation" => "Einsum.md",

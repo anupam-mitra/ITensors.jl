@@ -28,12 +28,7 @@ function isingMPO(sites)::MPO
   return H
 end
 
-#! format: off
-# JuliaFormatter tries to change this line to:
-# heisenbergMPO(sites, h::Vector{Float64}; onsite::String="Sz")
-# so turn it off for this line.
 function heisenbergMPO(sites, h::Vector{Float64}, onsite::String="Sz")::MPO
-#! format: on
   H = MPO(sites)
   N = length(H)
   link = Vector{Index}(undef, N + 1)
@@ -244,6 +239,39 @@ end
     @test length(sprint(show, ampo)) > 1
   end
 
+  @testset "OpSum algebra" begin
+    n = 5
+    sites = siteinds("S=1/2", n)
+    O1 = OpSum()
+    for j in 1:(n - 1)
+      O1 += "Sz", j, "Sz", j + 1
+    end
+    O2 = OpSum()
+    for j in 1:n
+      O2 += "Sx", j
+    end
+    O = O1 + 2 * O2
+    @test length(O) == 2 * n - 1
+    H1 = MPO(O1, sites)
+    H2 = MPO(O2, sites)
+    H = H1 + 2 * H2
+    @test prod(MPO(O, sites)) ≈ prod(H)
+
+    O = O1 - 2 * O2
+    @test length(O) == 2 * n - 1
+    H1 = MPO(O1, sites)
+    H2 = MPO(O2, sites)
+    H = H1 - 2 * H2
+    @test prod(MPO(O, sites)) ≈ prod(H)
+
+    O = O1 - O2 / 2
+    @test length(O) == 2 * n - 1
+    H1 = MPO(O1, sites)
+    H2 = MPO(O2, sites)
+    H = H1 - H2 / 2
+    @test prod(MPO(O, sites)) ≈ prod(H)
+  end
+
   @testset "Single creation op" begin
     ampo = OpSum()
     add!(ampo, "Adagup", 3)
@@ -327,7 +355,7 @@ end
       ampo1 += 0.5, "S-", j, "S+", j + 1
     end
     for j in 1:N
-      ampo1 += "Sz*Sz", j
+      ampo1 += "Sz * Sz", j
     end
     Ha1 = MPO(ampo1, sites)
 
@@ -342,7 +370,7 @@ end
     end
     Ha2 = MPO(ampo2, sites)
 
-    He = heisenbergMPO(sites, ones(N), "Sz*Sz")
+    He = heisenbergMPO(sites, ones(N), "Sz * Sz")
     psi = makeRandomMPS(sites)
     Oe = inner(psi, He, psi)
     Oa1 = inner(psi, Ha1, psi)
@@ -503,7 +531,7 @@ end
         ampo1 += 0.5, "S-", j, "S+", j + 1
       end
       for j in 1:N
-        ampo1 += "Sz*Sz", j
+        ampo1 += "Sz * Sz", j
       end
       Ha1 = MPO(ampo1, sites)
 
@@ -518,7 +546,7 @@ end
       end
       Ha2 = MPO(ampo2, sites)
 
-      He = heisenbergMPO(sites, ones(N), "Sz*Sz")
+      He = heisenbergMPO(sites, ones(N), "Sz * Sz")
       psi = makeRandomMPS(sites)
       Oe = inner(psi, He, psi)
       Oa1 = inner(psi, Ha1, psi)
@@ -698,7 +726,7 @@ end
         ampo1 .+= 0.5, "S-", j, "S+", j + 1
       end
       for j in 1:N
-        ampo1 .+= "Sz*Sz", j
+        ampo1 .+= "Sz * Sz", j
       end
       Ha1 = MPO(ampo1, sites)
 
@@ -713,7 +741,7 @@ end
       end
       Ha2 = MPO(ampo2, sites)
 
-      He = heisenbergMPO(sites, ones(N), "Sz*Sz")
+      He = heisenbergMPO(sites, ones(N), "Sz * Sz")
       psi = makeRandomMPS(sites)
       Oe = inner(psi, He, psi)
       Oa1 = inner(psi, Ha1, psi)

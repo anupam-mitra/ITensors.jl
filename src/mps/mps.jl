@@ -123,7 +123,7 @@ function randomizeMPS!(M::MPS, sites::Vector{<:Index}, linkdim=1)
   setleftlim!(M, 0)
   setrightlim!(M, 2)
   if dim(commonind(M[c], M[c + 1])) < linkdim
-    error("MPS center bond dim less than requested")
+    @warn "MPS center bond dimension is less than requested (you requested $linkdim, but in practice it is $(dim(commonind(M[c], M[c + 1]))). This is likely due to technicalities of truncating quantum number sectors."
   end
 end
 
@@ -567,6 +567,7 @@ using efficient MPS techniques. Returns the matrix C.
 
 # Optional Keyword Arguments
 - `site_range = 1:length(psi)`: compute correlations only for sites in the given range
+- `ishermitian = false` : if `false`, force independent calculations of the matrix elements above and below the diagonal, while if `true` assume they are complex conjugates.
 
 For a correlation matrix of size NxN and an MPS of typical
 bond dimension m, the scaling of this algorithm is N^2*m^3.
@@ -583,29 +584,66 @@ Czz = correlation_matrix(psi,"Sz","Sz")
 s = siteinds("Electron",N; conserve_qns=true)
 psi = randomMPS(s, n->isodd(n) ? "Up" : "Dn"; linkdims=m)
 Cuu = correlation_matrix(psi,"Cdagup","Cup";site_range=2:8)
-```
+``` 
 """
-function correlation_matrix(psi::MPS, Op1::AbstractString, Op2::AbstractString; kwargs...)
+function correlation_matrix(psi::MPS, _Op1::AbstractString, _Op2::AbstractString; kwargs...)
   N = length(psi)
   ElT = promote_itensor_eltype(psi)
+  s = siteinds(psi)
 
-  site_range::UnitRange{Int} = get(kwargs, :site_range, 1:N)
-  start_site = first(site_range)
-  end_site = last(site_range)
+  Op1 = _Op1 #make copies into which we can insert "F" string operators, and then restore.
+  Op2 = _Op2
+  onsiteOp = "$Op1 * $Op2"
+  fermionic1 = has_fermion_string(Op1, s[1])
+  fermionic2 = has_fermion_string(Op2, s[1])
+  if fermionic1 != fermionic2
+    error(
+      "correlation_matrix: Mixed fermionic and bosonic operators are not supported yet."
+    )
+  end
+
+  # Decide if we need to calculate a non-hermitian corr. matrix which is roughly double the work.
+  is_cm_hermitian = false #Assume corr-matrix is non-hermitian
+  if haskey(kwargs, :ishermitian) #Did the user explicitly request something?
+    is_cm_hermitian::Bool = get(kwargs, :ishermitian, false) #Honour users request
+  else
+    O1 = op(Op1, s, 1)
+    O2 = op(Op2, s, 1)
+    O1 /= norm(O1)
+    O2 /= norm(O2)
+    #We need to decide if O1 ∝ O2 or O1 ∝ O2^dagger allowing for some round off errors.
+    eps = 1e-10
+    is_op_proportional = norm(O1 - O2) < eps
+    is_op_hermitian = norm(O1 - dag(swapprime(O2, 0, 1))) < eps
+    if is_op_proportional || is_op_hermitian
+      is_cm_hermitian = true
+    end
+    # finally if they are both fermionic and proportional then the corr matrix will
+    # be anti symmetric insterad of Hermitian. Handle things like <C_i*C_j>
+    # at this point we know fermionic2=fermionic1, but we put them both in the if
+    # to clarify the meaning of what we are doing.
+    if is_op_proportional && fermionic1 && fermionic2
+      is_cm_hermitian = false
+    end
+  end
+
+  if haskey(kwargs, :site_range)
+    @warn "The `site_range` keyword arg. to `correlation_matrix` is deprecated: use the keyword `sites` instead"
+    sites_ = kwargs[:site_range]
+  else
+    sites_ = get(kwargs, :sites, 1:N)
+  end
+  sites = (sites_ isa AbstractRange) ? sites_ : collect(sites_)
+
+  start_site = first(sites)
+  end_site = last(sites)
 
   psi = copy(psi)
   orthogonalize!(psi, start_site)
   norm2_psi = norm(psi[start_site])^2
 
-  s = siteinds(psi)
-  onsiteOp = "$Op1*$Op2"
-  fermionic2 = has_fermion_string(Op2, s[1])
-  if !using_auto_fermion() && fermionic2
-    Op1 = "$Op1*F"
-  end
-
   # Nb = size of block of correlation matrix
-  Nb = end_site - start_site + 1
+  Nb = length(sites)
 
   C = zeros(ElT, Nb, Nb)
 
@@ -615,39 +653,113 @@ function correlation_matrix(psi::MPS, Op1::AbstractString, Op2::AbstractString; 
     lind = commonind(psi[start_site], psi[start_site - 1])
     L = delta(dag(lind), lind')
   end
+  pL = start_site - 1
 
-  for i in start_site:(end_site - 1)
-    ci = i - start_site + 1
+  for (ni, i) in enumerate(sites[1:(end - 1)])
+    while pL < i - 1
+      pL += 1
+      L = (L * psi[pL]) * dag(prime(psi[pL], "Link"))
+    end
 
     Li = L * psi[i]
 
     # Get j == i diagonal correlations
     rind = commonind(psi[i], psi[i + 1])
-    C[ci, ci] =
+    C[ni, ni] =
       scalar((Li * op(onsiteOp, s, i)) * prime(dag(psi[i]), not(rind))) / norm2_psi
 
     # Get j > i correlations
-    Li = (Li * op(Op1, s, i)) * dag(prime(psi[i]))
-    for j in (i + 1):end_site
-      cj = j - start_site + 1
-      lind = commonind(psi[j], Li)
-      Li *= psi[j]
-
-      val = (Li * op(Op2, s, j)) * dag(prime(prime(psi[j], "Site"), lind))
-      C[ci, cj] = scalar(val) / norm2_psi
-      C[cj, ci] = conj(C[ci, cj])
-
-      if !using_auto_fermion() && fermionic2
-        Li *= op("F", s, j) * dag(prime(psi[j]))
-      else
-        Li *= dag(prime(psi[j], "Link"))
-      end
+    if !using_auto_fermion() && fermionic2
+      Op1 = "$Op1 * F"
     end
-    L = (L * psi[i]) * dag(prime(psi[i], "Link"))
-  end
+
+    Li12 = (Li * op(Op1, s, i)) * dag(prime(psi[i]))
+    pL12 = i
+
+    for (n, j) in enumerate(sites[(ni + 1):end])
+      nj = ni + n
+
+      while pL12 < j - 1
+        pL12 += 1
+        if !using_auto_fermion() && fermionic2
+          Li12 *= op("F", s[pL12]) * dag(prime(psi[pL12]))
+        else
+          Li12 *= dag(prime(psi[pL12], "Link"))
+        end
+        Li12 *= psi[pL12]
+      end
+
+      lind = commonind(psi[j], Li12)
+      Li12 *= psi[j]
+
+      val = (Li12 * op(Op2, s, j)) * dag(prime(prime(psi[j], "Site"), lind))
+      C[ni, nj] = scalar(val) / norm2_psi
+      if is_cm_hermitian
+        C[nj, ni] = conj(C[ni, nj])
+      end
+
+      pL12 += 1
+      if !using_auto_fermion() && fermionic2
+        Li12 *= op("F", s[pL12]) * dag(prime(psi[pL12]))
+      else
+        Li12 *= dag(prime(psi[pL12], "Link"))
+      end
+      @assert pL12 == j
+    end #for j
+    Op1 = _Op1 #"Restore Op1 with no Fs"
+
+    if !is_cm_hermitian #If isHermitian=false the we must calculate the below diag elements explicitly.
+
+      #  Get j < i correlations by swapping the operators
+      if !using_auto_fermion() && fermionic1
+        Op2 = "$Op2 * F"
+      end
+      Li21 = (Li * op(Op2, s, i)) * dag(prime(psi[i]))
+      pL21 = i
+      if !using_auto_fermion() && fermionic1
+        Li21 = -Li21 #Required because we swapped fermionic ops, instead of sweeping right to left.
+      end
+
+      for (n, j) in enumerate(sites[(ni + 1):end])
+        nj = ni + n
+
+        while pL21 < j - 1
+          pL21 += 1
+          if !using_auto_fermion() && fermionic1
+            Li21 *= op("F", s[pL21]) * dag(prime(psi[pL21]))
+          else
+            Li21 *= dag(prime(psi[pL21], "Link"))
+          end
+          Li21 *= psi[pL21]
+        end
+
+        lind = commonind(psi[j], Li21)
+        Li21 *= psi[j]
+
+        val = (Li21 * op(Op1, s, j)) * dag(prime(prime(psi[j], "Site"), lind))
+        C[nj, ni] = scalar(val) / norm2_psi
+
+        pL21 += 1
+        if !using_auto_fermion() && fermionic1
+          Li21 *= op("F", s[pL21]) * dag(prime(psi[pL21]))
+        else
+          Li21 *= dag(prime(psi[pL21], "Link"))
+        end
+        @assert pL21 == j
+      end #for j
+      Op2 = _Op2 #"Restore Op2 with no Fs"
+    end #if is_cm_hermitian
+
+    pL += 1
+    L = Li * dag(prime(psi[i], "Link"))
+  end #for i
 
   # Get last diagonal element of C
   i = end_site
+  while pL < i - 1
+    pL += 1
+    L = (L * psi[pL]) * dag(prime(psi[pL], "Link"))
+  end
   lind = commonind(psi[i], psi[i - 1])
   C[Nb, Nb] =
     scalar(L * psi[i] * op(onsiteOp, s, i) * prime(prime(dag(psi[i]), "Site"), lind)) /
@@ -657,15 +769,22 @@ function correlation_matrix(psi::MPS, Op1::AbstractString, Op2::AbstractString; 
 end
 
 """
-    expect(psi::MPS,ops::AbstractString...;kwargs...)
+    expect(psi::MPS,op::AbstractString...; kwargs...)
+    expect(psi::MPS,ops; kwargs...)
 
-Given an MPS `psi` and an operator name, returns
+Given an MPS `psi` and a single operator name, returns
 a vector of the expected value of the operator on 
-each site of the MPS. If multiple operator names are
-provided, returns a tuple of expectation value vectors.
+each site of the MPS. 
+
+If multiple operator names are provided, returns a tuple 
+of expectation value vectors.
+
+If a container of operator names is provided, returns the
+same type of container with names replaced by vectors
+of expectation values.
 
 # Optional Keyword Arguments
-- `site_range = 1:length(psi)`: compute expected values only for sites in the given range
+- `sites = 1:length(psi)`: compute expected values only for sites in the given range
 
 # Examples
 
@@ -674,43 +793,58 @@ N = 10
 
 s = siteinds("S=1/2",N)
 psi = randomMPS(s; linkdims=8)
-Z = expect(psi,"Sz";site_range=2:6)
+Z = expect(psi,"Sz";sites=2:4) # compute for sites 2,3,4
+Z3 = expect(psi,"Sz";sites=3)  # compute for site 3 only (output will be a scalar)
 
 s = siteinds("Electron",N)
 psi = randomMPS(s; linkdims=8)
 dens = expect(psi,"Ntot")
-updens,dndens = expect(psi,"Nup","Ndn")
+updens,dndens = expect(psi,"Nup","Ndn") # pass more than one operator
 ```
 """
-function expect(psi::MPS, ops::AbstractString...; kwargs...)
+function expect(psi::MPS, ops; kwargs...)
   psi = copy(psi)
   N = length(psi)
-  ElT = real(promote_itensor_eltype(psi))
-  Nops = length(ops)
+  ElT = promote_itensor_eltype(psi)
   s = siteinds(psi)
 
-  site_range::UnitRange{Int} = get(kwargs, :site_range, 1:N)
+  if haskey(kwargs, :site_range)
+    @warn "The `site_range` keyword arg. to `expect` is deprecated: use the keyword `sites` instead"
+    sites = kwargs[:site_range]
+  else
+    sites = get(kwargs, :sites, 1:N)
+  end
+
+  site_range = (sites isa AbstractRange) ? sites : collect(sites)
   Ns = length(site_range)
   start_site = first(site_range)
-  offset = start_site - 1
+
+  el_types = map(o -> ishermitian(op(o, s[start_site])) ? real(ElT) : ElT, ops)
 
   orthogonalize!(psi, start_site)
   norm2_psi = norm(psi)^2
 
-  ex = ntuple(n -> zeros(ElT, Ns), Nops)
-  for j in site_range
+  ex = map((o, el_t) -> zeros(el_t, Ns), ops, el_types)
+  for (entry, j) in enumerate(site_range)
     orthogonalize!(psi, j)
-    for n in 1:Nops
-      ex[n][j - offset] =
-        real(scalar(psi[j] * op(ops[n], s[j]) * dag(prime(psi[j], s[j])))) / norm2_psi
+    for (n, opname) in enumerate(ops)
+      val = scalar(psi[j] * op(opname, s[j]) * dag(prime(psi[j], s[j]))) / norm2_psi
+      ex[n][entry] = (el_types[n] <: Real) ? real(val) : val
     end
   end
 
-  if Nops == 1
-    return Ns == 1 ? ex[1][1] : ex[1]
-  else
-    return Ns == 1 ? [x[1] for x in ex] : ex
+  if sites isa Number
+    return map(arr -> arr[1], ex)
   end
+  return ex
+end
+
+function expect(psi::MPS, op::AbstractString; kwargs...)
+  return first(expect(psi, (op,); kwargs...))
+end
+
+function expect(psi::MPS, op1::AbstractString, ops::AbstractString...; kwargs...)
+  return expect(psi, (op1, ops...); kwargs...)
 end
 
 function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, M::MPS)

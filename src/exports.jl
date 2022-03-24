@@ -18,6 +18,15 @@ export
   # Deprecated
   addblock!,
 
+  # ITensorVisualizationCore module
+  # Macros
+  @visualize,
+  @visualize!,
+  @visualize_noeval,
+  @visualize_noeval!,
+  @visualize_sequence,
+  @visualize_sequence_noeval,
+
   # ITensors.jl
   index_id_rng,
 
@@ -133,6 +142,7 @@ export
   ind,
   inds,
   insertblock!,
+  ishermitian,
   itensor,
   mul!,
   matrix,
@@ -167,6 +177,7 @@ export
   swapprime!,
   settags!,
   swaptags!,
+  transpose,
   uniqueinds,
   uniqueind,
   unioninds,
@@ -221,6 +232,7 @@ export
   lognorm,
   movesite,
   movesites,
+  normalize,
   ortho_lims,
   reset_ortho_lims!,
   set_ortho_lims!,

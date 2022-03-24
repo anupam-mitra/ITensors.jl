@@ -84,18 +84,22 @@ import HDF5: read, write
 import LinearAlgebra:
   axpby!,
   axpy!,
+  diag,
   dot,
   eigen,
   exp,
   factorize,
+  ishermitian,
   lmul!,
   mul!,
   norm,
+  normalize,
   normalize!,
   qr,
   rmul!,
   svd,
-  tr
+  tr,
+  transpose
 
 using ITensors.NDTensors:
   EmptyNumber,
@@ -122,6 +126,7 @@ import ITensors.NDTensors:
   contract,
   dense,
   denseblocks,
+  diaglength,
   dim,
   dims,
   disable_tblis,

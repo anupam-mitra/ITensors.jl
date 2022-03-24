@@ -1,7 +1,11 @@
 using ITensors
+using LinearAlgebra
 using Test
+
 using Combinatorics: permutations
+
 import Random: seed!
+import ITensors.NDTensors: DenseTensor
 
 # Enable debug checking for these tests
 ITensors.enable_debug_checks()
@@ -31,6 +35,15 @@ end
       @test storage(A) isa NDTensors.EmptyStorage{NDTensors.EmptyNumber}
     end
 
+    @testset "diag" for ElType in (Float64, ComplexF64)
+      i, j = Index.(2, ("i", "j"))
+      A = randomITensor(ElType, i, j)
+      d = diag(A)
+      @test d isa DenseTensor{ElType,1}
+      @test d[1] == A[1, 1]
+      @test d[2] == A[2, 2]
+    end
+
     @testset "Index set operations" begin
       i, j, k, l = Index.(2, ("i", "j", "k", "l"))
       A = randomITensor(i, j)
@@ -41,7 +54,37 @@ end
       @test !hascommoninds(A, C)
     end
 
-    @testset "Get element with end (lastindex, LastIndex)" begin
+    @testset "getindex with state string" begin
+      i₁ = Index(2, "S=1/2")
+      i₂ = Index(2, "S=1/2")
+      v = ITensor(i₁, i₂)
+      v[i₂ => "↑", i₁ => "↓"] = 1.0
+      @test v[1, 1] == 0.0
+      @test v[1, 2] == 0.0
+      @test v[2, 1] == 1.0
+      @test v[2, 2] == 0.0
+      @test v[i₁ => "↑", i₂ => "↑"] == 0.0
+      @test v[i₁ => "↑", i₂ => "↓"] == 0.0
+      @test v[i₁ => "↓", i₂ => "↑"] == 1.0
+      @test v[i₁ => "↓", i₂ => "↓"] == 0.0
+    end
+
+    @testset "getindex with state string" begin
+      i₁ = Index(2, "S=1/2")
+      i₂ = Index(2, "S=1/2")
+      v = ITensor(i₁, i₂)
+      v["↓", "↑"] = 1.0
+      @test v[1, 1] == 0.0
+      @test v[1, 2] == 0.0
+      @test v[2, 1] == 1.0
+      @test v[2, 2] == 0.0
+      @test v["↑", "↑"] == 0.0
+      @test v["↑", "↓"] == 0.0
+      @test v["↓", "↑"] == 1.0
+      @test v["↓", "↓"] == 0.0
+    end
+
+    @testset "getindex with end (lastindex, LastIndex)" begin
       a = Index(2)
       b = Index(3)
       A = randomITensor(a, b)
@@ -282,6 +325,35 @@ end
       A = itensor(M, i, j)
       @test storage(A) isa NDTensors.Dense{ComplexF64}
     end
+  end
+
+  @testset "eltype promotion with scalar * and /" begin
+    @test eltype(ITensor(1.0f0, Index(2)) * 2) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) .* 2) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) / 2) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) ./ 2) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) * 2.0f0) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) .* 2.0f0) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) / 2.0f0) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) ./ 2.0f0) === Float32
+    @test eltype(ITensor(1.0f0, Index(2)) * 2.0) === Float64
+    @test eltype(ITensor(1.0f0, Index(2)) .* 2.0) === Float64
+    @test eltype(ITensor(1.0f0, Index(2)) / 2.0) === Float64
+    @test eltype(ITensor(1.0f0, Index(2)) ./ 2.0) === Float64
+  end
+
+  @testset "Division /" begin
+    i = Index(2)
+    A = randomITensor(i)
+    B = A / 2
+    C = A / ITensor(2)
+    @test B isa ITensor
+    @test C isa ITensor
+    @test B ≈ C
+    @test A[1] / 2 ≈ B[1]
+    @test A[2] / 2 ≈ B[2]
+    @test A[1] / 2 ≈ C[1]
+    @test A[2] / 2 ≈ C[2]
   end
 
   @testset "Convert to complex" begin
@@ -1148,7 +1220,7 @@ end
         @test A[ii, jj, kk] == invdigits(SType, ii, jj, kk)
       end
     end
-    @testset "Test scalar(ITensor)" begin
+    @testset "Test scalar(::ITensor)" begin
       x = SType(34)
       A = ITensor(x)
       @test x == scalar(A)
@@ -1158,6 +1230,12 @@ end
     @testset "Test norm(ITensor)" begin
       A = randomITensor(SType, i, j, k)
       @test norm(A) ≈ sqrt(scalar(dag(A) * A))
+    end
+    @testset "Test dag(::Number)" begin
+      x = 1.2 + 2.3im
+      @test dag(x) == 1.2 - 2.3im
+      x = 1.4
+      @test dag(x) == 1.4
     end
     @testset "Test add ITensors" begin
       A = randomITensor(SType, i, j, k)
@@ -1373,7 +1451,7 @@ end
     @test hassameinds(inds(is; plev=0), (i,))
   end
 
-  @testset "product" begin
+  @testset "product/apply" begin
     s1 = Index(2, "s1")
     s2 = Index(2, "s2")
     s3 = Index(2, "s3")
@@ -1468,6 +1546,18 @@ end
     @test_throws ErrorException product(A, B)
   end
 
+  @testset "inner ($ElType)" for ElType in (Float64, ComplexF64)
+    i = Index(2)
+    j = Index(2)
+    A = randomITensor(ElType, i', j', i, j)
+    x = randomITensor(ElType, i, j)
+    y = randomITensor(ElType, i, j)
+    @test inner(x, y) ≈ (dag(x) * y)[]
+    @test inner(x', A, y) ≈ (dag(x)' * A * y)[]
+    # No automatic priming like in the MPS case
+    @test_throws DimensionMismatch inner(x, A, y)
+  end
+
   @testset "hastags" begin
     i = Index(2, "i, x")
     j = Index(2, "j, x")
@@ -1508,6 +1598,14 @@ end
         end
       end
     end
+  end
+
+  @testset "ishermitian" begin
+    s = Index(2, "s")
+    Sz = ITensor([0.5 0.0; 0.0 -0.5], s', s)
+    Sp = ITensor([0.0 1.0; 0.0 0.0], s', s)
+    @test ishermitian(Sz)
+    @test !ishermitian(Sp)
   end
 end # End Dense ITensor basic functionality
 

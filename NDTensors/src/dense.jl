@@ -3,23 +3,37 @@
 #
 using LinearAlgebra: BlasFloat
 
-struct Dense{ElT,VecT<:AbstractVector} <: TensorStorage{ElT}
+struct Dense{ElT,VecT<:AbstractArray} <: TensorStorage{ElT}
   data::VecT
-  function Dense{ElT,VecT}(data::AbstractVector) where {ElT,VecT<:AbstractVector{ElT}}
+  function Dense{ElT,VecT}(data::AbstractArray) where {ElT,VecT<:AbstractArray{ElT}}
     return new{ElT,VecT}(data)
+  end
+
+  # Special case of Vector
+  function Dense{ElT,VecT}(data::Vector) where {ElT,VecT<:AbstractArray{ElT}}
+    return new{ElT,VecT}(data)
+  end
+
+  # Special case of Array which gets turned into a Vector
+  function Dense{ElT,VecT}(data::Array) where {ElT,VecT<:AbstractArray{ElT}}
+    return new{ElT,VecT}(vec(data))
   end
 end
 
-function Dense(data::VecT) where {VecT<:AbstractVector{ElT}} where {ElT}
+function Dense(data::VecT) where {VecT<:AbstractArray{ElT}} where {ElT}
   return Dense{ElT,VecT}(data)
 end
 
-function Dense{ElR}(data::AbstractVector{ElT}) where {ElR,ElT}
+function Dense(data::Array{ElT}) where {ElT}
+  return Dense{ElT,Vector{ElT}}(vec(data))
+end
+
+function Dense{ElR}(data::AbstractArray{ElT}) where {ElR,ElT}
   return ElT == ElR ? Dense(data) : Dense(ElR.(data))
 end
 
 # Construct from a set of indices
-function Dense{ElT,VecT}(inds) where {ElT,VecT<:AbstractVector{ElT}}
+function Dense{ElT,VecT}(inds) where {ElT,VecT<:AbstractArray{ElT}}
   return Dense(VecT(dim(inds)))
 end
 
@@ -64,7 +78,7 @@ similar(D::Dense, length::Int) = Dense(similar(data(D), length))
 
 function similar(
   ::Type{<:Dense{ElT,VecT}}, length::Int
-) where {ElT,VecT<:AbstractVector{ElT}}
+) where {ElT,VecT<:AbstractArray{ElT}}
   return Dense(similar(Vector{ElT}, length))
 end
 
@@ -387,6 +401,10 @@ function (x::Number * T::Tensor)
   return tensor(x * storage(T), inds(T))
 end
 (T::Tensor * x::Number) = x * T
+
+function (T::Tensor / x::Number)
+  return tensor(storage(T) / x, inds(T))
+end
 
 function permutedims!(
   R::DenseTensor{<:Number,N}, T::DenseTensor{<:Number,N}, perm, f::Function

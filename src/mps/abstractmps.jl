@@ -119,7 +119,9 @@ isortho(m::AbstractMPS) = leftlim(m) + 1 == rightlim(m) - 1
 
 # Could also define as `only(ortho_lims)`
 function orthocenter(m::AbstractMPS)
-  !isortho(m) && error("$(typeof(m)) has no well-defined orthogonality center")
+  !isortho(m) && error(
+    "$(typeof(m)) has no well-defined orthogonality center, orthogonality center is on the range $(ortho_lims(m)).",
+  )
   return leftlim(m) + 1
 end
 
@@ -1004,7 +1006,16 @@ function _log_or_not_dot(
     return log_inner_tot
   end
 
-  return O[]
+  dot_M1_M2 = O[]
+
+  T = promote_type(ITensors.promote_itensor_eltype(M1), ITensors.promote_itensor_eltype(M2))
+  _max_dot_warn = inv(eps(real(float(T))))
+
+  if isnan(dot_M1_M2) || isinf(dot_M1_M2) || abs(dot_M1_M2) > _max_dot_warn
+    @warn "The inner product (or norm²) you are computing is very large: $dot_M1_M2, which is greater than $_max_dot_warn and may lead to floating point errors when used. You should consider using `lognorm` or `loginner` instead, which will help avoid floating point errors. For example if you are trying to normalize your MPS/MPO `A`, the normalized MPS/MPO `B` would be given by `B = A ./ z` where `z = exp(lognorm(A) / length(A))`."
+  end
+
+  return dot_M1_M2
 end
 
 """
@@ -1071,7 +1082,12 @@ function norm(M::AbstractMPS)
   if isortho(M)
     return norm(M[orthocenter(M)])
   end
-  return sqrt(dot(M, M))
+  norm2_M = dot(M, M)
+  rtol = 1e-15
+  if !IsApprox.isreal(norm2_M, Approx(; rtol=rtol))
+    error("norm² is $norm2_M, which is not real up to a relative tolerance of $rtol")
+  end
+  return sqrt(real(norm2_M))
 end
 
 """
@@ -1088,7 +1104,61 @@ function lognorm(M::AbstractMPS)
   if isortho(M)
     return log(norm(M[orthocenter(M)]))
   end
-  return 0.5 * logdot(M, M)
+  lognorm2_M = logdot(M, M)
+  rtol = 1e-15
+  if !IsApprox.isreal(lognorm2_M, Approx(; rtol=rtol))
+    error(
+      "log(norm²) is $lognorm2_M, which is not real up to a relative tolerance of $rtol"
+    )
+  end
+  return 0.5 * lognorm2_M
+end
+
+# copy an MPS/MPO, but do a deep copy of the tensors in the
+# range of the orthogonality center.
+function deepcopy_ortho_center(M::AbstractMPS)
+  M = copy(M)
+  c = ortho_lims(M)
+  # TODO: define `getindex(::AbstractMPS, I)` to return `AbstractMPS`
+  M[c] = deepcopy(typeof(M)(M[c]))
+  return M
+end
+
+"""
+    normalize(A::MPS; (lognorm!)=[])
+    normalize(A::MPO; (lognorm!)=[])
+
+Return a new MPS or MPO `A` that is the same as the original MPS or MPO but with `norm(A) ≈ 1`.
+
+In practice, this evenly spreads `lognorm(A)` over the tensors within the range of the orthogonality center to avoid numerical overflow in the case of diverging norms.
+
+See also [`normalize!`](@ref), [`norm`](@ref), [`lognorm`](@ref).
+"""
+function normalize(M::AbstractMPS; (lognorm!)=[])
+  return normalize!(deepcopy_ortho_center(M); (lognorm!)=lognorm!)
+end
+
+"""
+    normalize!(A::MPS; (lognorm!)=[])
+    normalize!(A::MPO; (lognorm!)=[])
+
+Change the MPS or MPO `A` in-place such that `norm(A) ≈ 1`. This modifies the data of the tensors within the orthogonality center.
+
+In practice, this evenly spreads `lognorm(A)` over the tensors within the range of the orthogonality center to avoid numerical overflow in the case of diverging norms.
+
+See also [`normalize`](@ref), [`norm`](@ref), [`lognorm`](@ref).
+"""
+function normalize!(M::AbstractMPS; (lognorm!)=[])
+  c = ortho_lims(M)
+  lognorm_M = lognorm(M)
+  push!(lognorm!, lognorm_M)
+  z = exp(lognorm_M / length(c))
+  # XXX: this is not modifying `M` in-place.
+  # M[c] ./= z
+  for n in c
+    M[n] ./= z
+  end
+  return M
 end
 
 """
@@ -1177,6 +1247,8 @@ println()
 ```
 """
 function +(ψ⃗::MPST...; cutoff=1e-15, kwargs...) where {MPST<:AbstractMPS}
+  # TODO: Check that the inputs have the same site indices
+
   Nₘₚₛ = length(ψ⃗)
 
   @assert all(ψᵢ -> length(ψ⃗[1]) == length(ψᵢ), ψ⃗)
@@ -1238,6 +1310,8 @@ function +(ψ⃗::MPST...; cutoff=1e-15, kwargs...) where {MPST<:AbstractMPS}
   return convert(MPST, ψ)
 end
 
++(ψ::AbstractMPS) = ψ
+
 add(ψ⃗::AbstractMPS...; kwargs...) = +(ψ⃗...; kwargs...)
 
 -(ψ₁::AbstractMPS, ψ₂::AbstractMPS; kwargs...) = +(ψ₁, -ψ₂; kwargs...)
@@ -1276,6 +1350,11 @@ Either modify in-place with `orthogonalize!` or
 out-of-place with `orthogonalize`.
 """
 function orthogonalize!(M::AbstractMPS, j::Int; kwargs...)
+  @debug_check begin
+    if !(1 <= j <= length(M))
+      error("Input j=$j to `orthogonalize!` out of range (valid range = 1:$(length(M)))")
+    end
+  end
   while leftlim(M) < (j - 1)
     (leftlim(M) < 0) && setleftlim!(M, 0)
     b = leftlim(M) + 1
@@ -1361,6 +1440,26 @@ end
 # Make `*` and alias for `contract` of two `AbstractMPS`
 *(A::AbstractMPS, B::AbstractMPS; kwargs...) = contract(A, B; kwargs...)
 
+function _apply_to_orthocenter!(f, ψ::AbstractMPS, x)
+  limsψ = ortho_lims(ψ)
+  n = first(limsψ)
+  ψ[n] = f(ψ[n], x)
+  return ψ
+end
+
+function _apply_to_orthocenter(f, ψ::AbstractMPS, x)
+  return _apply_to_orthocenter!(f, copy(ψ), x)
+end
+
+"""
+    ψ::MPS/MPO * α::Number
+
+Scales the MPS or MPO by the provided number.
+
+Currently, this works by scaling one of the sites within the orthogonality limits.
+"""
+(ψ::AbstractMPS * α::Number) = _apply_to_orthocenter(*, ψ, α)
+
 """
     α::Number * ψ::MPS/MPO
 
@@ -1368,15 +1467,9 @@ Scales the MPS or MPO by the provided number.
 
 Currently, this works by scaling one of the sites within the orthogonality limits.
 """
-function (α::Number * ψ::AbstractMPS)
-  limsψ = ortho_lims(ψ)
-  n = first(limsψ)
-  αψ = copy(ψ)
-  αψ[n] = α * ψ[n]
-  return αψ
-end
+(α::Number * ψ::AbstractMPS) = ψ * α
 
-(ψ::AbstractMPS * α::Number) = α * ψ
+(ψ::AbstractMPS / α::Number) = _apply_to_orthocenter(/, ψ, α)
 
 -(ψ::AbstractMPS) = -1 * ψ
 
@@ -1553,13 +1646,14 @@ _number_inds(s::IndexSet) = length(s)
 _number_inds(sites) = sum(_number_inds(s) for s in sites)
 
 """
-    MPS(A::ITensor, sites; <keyword arguments>)
-    MPO(A::ITensor, sites; <keyword arguments>)
+    MPS(A::ITensor, sites; kwargs...)
+    MPO(A::ITensor, sites; kwargs...)
 
 Construct an MPS/MPO from an ITensor `A` by decomposing it site
 by site according to the site indices `sites`.
 
-# Arguments
+# Keywords
+
 - `leftinds = nothing`: optional left dangling indices. Indices that are not in `sites` and `leftinds` will be dangling off of the right side of the MPS/MPO.
 - `orthocenter::Integer = length(sites)`: the desired final orthogonality center of the output MPS/MPO.
 - `cutoff`: the desired truncation error at each link.
@@ -1716,8 +1810,8 @@ function movesites(ψ::AbstractMPS, ns, ns′; kwargs...)
 end
 
 """
-    product(o::ITensor, ψ::Union{MPS, MPO}, [ns::Vector{Int}]; <keyword argument>)
-    apply([...])
+    apply(o::ITensor, ψ::Union{MPS, MPO}, [ns::Vector{Int}]; kwargs...)
+    product([...])
 
 Get the product of the operator `o` with the MPS/MPO `ψ`,
 where the operator is applied to the sites `ns`. If `ns`
@@ -1730,8 +1824,12 @@ back to their original locations. You can leave them where
 they are by setting the keyword argument `move_sites_back`
 to false.
 
-# Arguments
-- `move_sites_back::Bool = true`: after the ITensor is applied to the MPS or MPO, move the sites of the MPS or MPO back to their original locations.
+# Keywords
+
+- `cutoff::Real`: singular value truncation cutoff.
+- `maxdim::Int`: maximum MPS/MPO dimension.
+- `apply_dag::Bool = false`: apply the gate and the dagger of the gate (only relevant for MPO evolution).
+- `move_sites_back::Bool = true`: after the ITensors are applied to the MPS or MPO, move the sites of the MPS or MPO back to their original locations.
 """
 function product(
   o::ITensor,
@@ -1769,10 +1867,17 @@ function product(
 end
 
 """
-    product(As::Vector{<:ITensor}, M::Union{MPS, MPO}; <keyword arguments>)
-    apply([...])
+    apply(As::Vector{<:ITensor}, M::Union{MPS, MPO}; kwargs...)
+    product([...])
 
 Apply the ITensors `As` to the MPS or MPO `M`, treating them as gates or matrices from pairs of prime or unprimed indices.
+
+# Keywords
+
+- `cutoff::Real`: singular value truncation cutoff.
+- `maxdim::Int`: maximum MPS/MPO dimension.
+- `apply_dag::Bool = false`: apply the gate and the dagger of the gate (only relevant for MPO evolution).
+- `move_sites_back::Bool = true`: after the ITensor is applied to the MPS or MPO, move the sites of the MPS or MPO back to their original locations.
 
 # Examples
 

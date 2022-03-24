@@ -360,6 +360,7 @@ ITensor(x::RealOrComplex{Int}, is...) = ITensor(float(x), is...)
 # EmptyStorage ITensor constructors
 #
 
+# TODO: Deprecated!
 """
     emptyITensor([::Type{ElT} = NDTensors.EmptyNumber, ]inds)
     emptyITensor([::Type{ElT} = NDTensors.EmptyNumber, ]inds::Index...)
@@ -457,7 +458,7 @@ function ITensor(
     ),
   )
   data = Array{eltype}(as, A)
-  return itensor(Dense(vec(data)), inds)
+  return itensor(Dense(data), inds)
 end
 
 function ITensor(
@@ -748,6 +749,7 @@ size(A::ITensor, d::Int) = size(tensor(A), d)
 copy(T::ITensor)::ITensor = itensor(copy(tensor(T)))
 
 """
+    Array{ElT, N}(T::ITensor, i:Index...)
     Array{ElT}(T::ITensor, i:Index...)
     Array(T::ITensor, i:Index...)
 
@@ -762,26 +764,34 @@ an Array with a copy of the ITensor's elements. The
 order in which the indices are provided indicates
 the order of the data in the resulting Array.
 """
-function Array{ElT,N}(T::ITensor, is::Vararg{Index,N}) where {ElT,N}
+function Array{ElT,N}(T::ITensor, is::Indices) where {ElT,N}
   ndims(T) != N && throw(
     DimensionMismatch(
       "cannot convert an $(ndims(T)) dimensional ITensor to an $N-dimensional Array."
     ),
   )
-  TT = tensor(permute(T, is...))
+  TT = tensor(permute(T, is))
   return Array{ElT,N}(TT)::Array{ElT,N}
 end
 
-function Array{ElT}(T::ITensor, is::Vararg{Index,N}) where {ElT,N}
-  return Array{ElT,N}(T, is...)
+function Array{ElT,N}(T::ITensor, is...) where {ElT,N}
+  return Array{ElT,N}(T, indices(is...))
 end
 
-function Array(T::ITensor, is::Vararg{Index,N}) where {N}
-  return Array{eltype(T),N}(T, is...)::Array{<:Number,N}
+function Array{ElT}(T::ITensor, is::Indices) where {ElT}
+  return Array{ElT,length(is)}(T, is)
 end
 
-function Array{<:Any,N}(T::ITensor, is::Vararg{Index,N}) where {N}
-  return Array(T, is...)
+function Array{ElT}(T::ITensor, is...) where {ElT}
+  return Array{ElT}(T, indices(is...))
+end
+
+function Array(T::ITensor, is...)
+  return Array{eltype(T)}(T, is...)
+end
+
+function Array{<:Any,N}(T::ITensor, is...) where {N}
+  return Array{eltype(T),N}(T, is...)
 end
 
 function Vector{ElT}(T::ITensor)::Vector{ElT} where {ElT}
@@ -879,7 +889,20 @@ A[i => 1, i' => 2] # 2.0, same as: A[i' => 2, i => 1]
   return tensor(T)[]
 end
 
-# Defining this with the type signature `I::Vararg{Integer, N}` instead of `I::Integere...` is much faster:
+function _vals(is::Indices, I::String...)
+  return val.(is, I)
+end
+
+function _vals(T::ITensor, I::String...)
+  return _vals(inds(T), I...)
+end
+
+# Enable indexing with string values, like `A["Up"]`.
+function getindex(T::ITensor, I1::String, Is::String...)
+  return T[_vals(T, I1, Is...)...]
+end
+
+# Defining this with the type signature `I::Vararg{Integer, N}` instead of `I::Integer...` is much faster:
 #
 # 58.720 ns (1 allocation: 368 bytes)
 #
@@ -969,6 +992,13 @@ end
   return settensor!(T, _setindex!!(tensor(T), x, I...))
 end
 
+@propagate_inbounds @inline function setindex!(
+  T::ITensor, x::Number, I1::Pair{<:Index,String}, I::Pair{<:Index,String}...
+)
+  Iv = map(i -> i.first => val(i.first, i.second), (I1, I...))
+  return setindex!(T, x, Iv...)
+end
+
 # XXX: what is this definition for?
 Base.checkbounds(::Any, ::Block) = nothing
 
@@ -996,6 +1026,12 @@ function setindex!(T::ITensor, A::AbstractArray, ivs::Pair{<:Index}...)
   # from the ITensor indices.
   pvals = NDTensors.permute(vals, p)
   T[pvals...] = PermutedDimsArray(reshape(A, length.(vals)), p)
+  return T
+end
+
+# Enable indexing with string values, like `A["Up"]`.
+function setindex!(T::ITensor, x::Number, I1::String, Is::String...)
+  T[_vals(T, I1, Is...)...] = x
   return T
 end
 
@@ -1503,6 +1539,9 @@ function dag(as::AliasStyle, T::ITensor)
   return itensor(dag(as, tensor(T)))
 end
 
+# Helpful for generic code
+dag(x::Number) = conj(x)
+
 # Helper function for deprecating a keyword argument
 function deprecated_keyword_argument(
   ::Type{T}, kwargs; new_kw, old_kw, default, funcsym, map=identity
@@ -1644,8 +1683,9 @@ end
 # TODO: what about noncommutative number types?
 (x::Number * T::ITensor) = T * x
 
-#TODO: make a proper element-wise division
-(A::ITensor / x::Number) = A * (1.0 / x)
+(A::ITensor / x::Number) = itensor(tensor(A) / x)
+
+(T1::ITensor / T2::ITensor) = T1 / T2[]
 
 -(A::ITensor) = itensor(-tensor(A))
 
@@ -1726,6 +1766,10 @@ iscombiner(T::ITensor)::Bool = (storage(T) isa Combiner)
 
 # TODO: add isdiag(::Tensor) to NDTensors
 isdiag(T::ITensor)::Bool = (storage(T) isa Diag || storage(T) isa DiagBlockSparse)
+
+diag(T::ITensor) = diag(tensor(T))
+
+diaglength(T::ITensor) = diaglength(tensor(T))
 
 function can_combine_contract(A::ITensor, B::ITensor)::Bool
   return hasqns(A) &&
@@ -1909,15 +1953,11 @@ end
 
 *(As::ITensor...; kwargs...)::ITensor = contract(As...; kwargs...)
 
-#! format: off
-# Turns off formatting since JuliaFormatter tries to change β to a keyword argument, i.e.
-# contract!(C::ITensor, A::ITensor, B::ITensor, α::Number; β::Number=0)::ITensor
 function contract!(C::ITensor, A::ITensor, B::ITensor, α::Number, β::Number=0)::ITensor
-#! format: on
   labelsCAB = compute_contraction_labels(inds(C), inds(A), inds(B))
   labelsC, labelsA, labelsB = labelsCAB
   CT = NDTensors.contract!!(
-    Tensor(C), _Tuple(labelsC), tensor(A), _Tuple(labelsA), Tensor(B), _Tuple(labelsB), α, β
+    tensor(C), _Tuple(labelsC), tensor(A), _Tuple(labelsA), tensor(B), _Tuple(labelsB), α, β
   )
   setstorage!(C, storage(CT))
   setinds!(C, inds(C))
@@ -1934,7 +1974,7 @@ end
 # This is necessary for now since not all types implement contract!!
 # with non-trivial α and β
 function contract!(C::ITensor, A::ITensor, B::ITensor)::ITensor
-  return settensor!(C, _contract!!(Tensor(C), tensor(A), Tensor(B)))
+  return settensor!(C, _contract!!(tensor(C), tensor(A), tensor(B)))
 end
 
 mul!(C::ITensor, A::ITensor, B::ITensor, args...)::ITensor = contract!(C, A, B, args...)
@@ -1954,6 +1994,29 @@ function indpairs(T::ITensor; plev::Pair{Int,Int}=0 => 1, tags::Pair=ts"" => ts"
   )
   is_last = permute(commoninds(T, is_last), is_last)
   return is_first .=> is_last
+end
+
+"""
+    transpose(T::ITensor)
+
+Treating an ITensor as a map from a set of indices
+of prime level 0 to a matching set of indices but
+of prime level 1 
+[for example: (i,j,k,...) -> (j',i',k',...)]
+return the ITensor which is the transpose of this map.
+"""
+transpose(T::ITensor) = swapprime(T, 0 => 1)
+
+"""
+    ishermitian(T::ITensor; kwargs...)
+
+Test whether an ITensor is a Hermitian operator,
+that is whether taking `dag` of the ITensor and
+transposing its indices returns numerically 
+the same ITensor.
+"""
+function ishermitian(T::ITensor; kwargs...)
+  return isapprox(T, dag(transpose(T)); kwargs...)
 end
 
 # Trace an ITensor over pairs of indices determined by
@@ -2030,9 +2093,9 @@ function exp(A::ITensor, Linds, Rinds; kwargs...)
 
   CL = combiner(Lis...; dir=Out)
   CR = combiner(Ris...; dir=In)
-  AC = A * CR * CL
-  expAT = ishermitian ? exp(Hermitian(Tensor(AC))) : exp(Tensor(AC))
-  return itensor(expAT) * dag(CR) * dag(CL)
+  AC = (A * CR) * CL
+  expAT = ishermitian ? exp(Hermitian(tensor(AC))) : exp(tensor(AC))
+  return (itensor(expAT) * dag(CR)) * dag(CL)
 end
 
 function exp(A::ITensor; kwargs...)
@@ -2058,7 +2121,7 @@ function hadamard_product!(R::ITensor, T1::ITensor, T2::ITensor)
   #if inds(A) ≠ inds(B)
   #  B = permute(B, inds(A))
   #end
-  #Tensor(C) .= tensor(A) .* Tensor(B)
+  #tensor(C) .= tensor(A) .* tensor(B)
   map!((t1, t2) -> *(t1, t2), R, T1, T2)
   return R
 end
@@ -2284,7 +2347,7 @@ function product(A::ITensor, B::ITensor; apply_dag::Bool=false)
   elseif !isempty(common_paired_indsA) && isempty(common_paired_indsB)
     # matrix-vector product
     apply_dag && error("apply_dag not supported for vector-matrix product")
-    return noprime(A * B; inds=!danglings_inds)
+    return replaceprime(A * B, 1 => 0; inds=!danglings_inds)
   end
 end
 
@@ -2303,6 +2366,9 @@ end
 
 # Alias apply with product
 const apply = product
+
+inner(y::ITensor, A::ITensor, x::ITensor) = (dag(y) * A * x)[]
+inner(y::ITensor, x::ITensor) = (dag(y) * x)[]
 
 #######################################################################
 #

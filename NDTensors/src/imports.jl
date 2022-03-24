@@ -1,13 +1,16 @@
 import Base:
   # Types
+  AbstractFloat,
   Array,
   CartesianIndex,
+  Complex,
   IndexStyle,
   Tuple,
   # Symbols
   +,
   -,
   *,
+  /,
   # Methods
   checkbounds,
   complex,
@@ -46,6 +49,6 @@ import Base:
 
 import Base.Broadcast: Broadcasted, BroadcastStyle
 
-import LinearAlgebra: exp, norm
+import LinearAlgebra: diag, exp, norm
 
 import TupleTools: isperm

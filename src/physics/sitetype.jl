@@ -160,6 +160,7 @@ macro OpName_str(s)
 end
 
 # Default implementations of op and op!
+op(::OpName; kwargs...) = nothing
 op(::OpName, ::SiteType; kwargs...) = nothing
 op(::OpName, ::SiteType, ::Index...; kwargs...) = nothing
 function op(
@@ -217,48 +218,90 @@ s = Index(2, "Site,S=1/2")
 Sz = op("Sz", s)
 ```
 """
-function op(name::AbstractString, s::Index...; kwargs...)
+function op(name::AbstractString, s::Index...; adjoint::Bool=false, kwargs...)
   name = strip(name)
-
   # TODO: filter out only commons tags
   # if there are multiple indices
   commontags_s = commontags(s...)
 
-  # Interpret operator names joined by *
-  # as acting sequentially on the same site
-  starpos = findfirst("*", name)
-  if !isnothing(starpos)
-    op1 = name[1:prevind(name, starpos.start)]
-    op2 = name[nextind(name, starpos.start):end]
+  # first we handle the + and - algebra, which requires a space between ops to avoid clashing
+  name_split = nothing
+  @ignore_derivatives name_split = String.(split(name, " "))
+  oplocs = findall(x -> x ∈ ("+", "-"), name_split)
+
+  if !isempty(oplocs)
+    @ignore_derivatives !isempty(kwargs) &&
+      error("Lazy algebra on parametric gates not allowed")
+
+    # the string representation of algebra ops: ex ["+", "-", "+"]
+    labels = name_split[oplocs]
+    # assign coefficients to each term: ex [+1, -1, +1]
+    coeffs = [1, [(-1)^Int(label == "-") for label in labels]...]
+
+    # grad the name of each operator block separated by an algebra op, and do so by
+    # making sure blank spaces between opnames are kept when building the new block.
+    start, opnames = 0, String[]
+    for oploc in oplocs
+      finish = oploc
+      opnames = vcat(
+        opnames, [prod([name_split[k] * " " for k in (start + 1):(finish - 1)])]
+      )
+      start = oploc
+    end
+    opnames = vcat(
+      opnames, [prod([name_split[k] * " " for k in (start + 1):length(name_split)])]
+    )
+
+    # build the vector of blocks and sum
+    op_list = [
+      coeff * (op(opname, s...; kwargs...)) for (coeff, opname) in zip(coeffs, opnames)
+    ]
+    return sum(op_list)
+  end
+
+  # the the multiplication come after
+  oploc = findfirst("*", name)
+  if !isnothing(oploc)
+    op1, op2 = nothing, nothing
+    @ignore_derivatives begin
+      op1 = name[1:prevind(name, oploc.start)]
+      op2 = name[nextind(name, oploc.start):end]
+      if !(op1[end] == ' ' && op2[1] == ' ')
+        @warn "($op1*$op2) composite op definition `A*B` deprecated: please use `A * B` instead (with spaces)"
+      end
+    end
     return product(op(op1, s...; kwargs...), op(op2, s...; kwargs...))
   end
 
   common_stypes = _sitetypes(commontags_s)
-  push!(common_stypes, SiteType("Generic"))
+  @ignore_derivatives push!(common_stypes, SiteType("Generic"))
   opn = OpName(name)
 
   #
   # Try calling a function of the form:
-  #    op(::OpName, ::SiteType, ::Index; kwargs...)
+  #    op(::OpName, ::SiteType, ::Index...; kwargs...)
   #
   for st in common_stypes
     res = op(opn, st, s...; kwargs...)
     if !isnothing(res)
+      adjoint && return swapprime(dag(res), 0 => 1)
       return res
     end
   end
 
-  # otherwise try calling a function of the form:
-  #    op!(::ITensor, ::OpName, ::SiteType, ::Index; kwargs...)
   #
-  Op = emptyITensor(prime.(s)..., dag.(s)...)
-  for st in common_stypes
-    op!(Op, opn, st, s...; kwargs...)
-    if !isempty(Op)
-      return Op
-    end
+  # Try calling a function of the form:
+  #    op(::OpName; kwargs...)
+  #  for backward compatibility with previous
+  #  gate system in PastaQ.jl
+  #
+  op_mat = op(opn; kwargs...)
+  if !isnothing(op_mat)
+    rs = reverse(s)
+    res = itensor(op_mat, prime.(rs)..., ITensors.dag.(rs)...)
+    adjoint && return swapprime(dag(res), 0 => 1)
+    return res
   end
-
   #
   # otherwise try calling a function of the form:
   #    op(::OpName, ::SiteType; kwargs...)
@@ -268,7 +311,22 @@ function op(name::AbstractString, s::Index...; kwargs...)
     op_mat = op(opn, st; kwargs...)
     if !isnothing(op_mat)
       rs = reverse(s)
-      return itensor(op_mat, prime.(rs)..., dag.(rs)...)
+      #return itensor(op_mat, prime.(rs)..., ITensors.dag.(rs)...)
+      res = itensor(op_mat, prime.(rs)..., ITensors.dag.(rs)...)
+      adjoint && return swapprime(dag(res), 0 => 1)
+      return res
+    end
+  end
+
+  # otherwise try calling a function of the form:
+  #    op!(::ITensor, ::OpName, ::SiteType, ::Index...; kwargs...)
+  #
+  Op = ITensor(prime.(s)..., ITensors.dag.(s)...)
+  for st in common_stypes
+    op!(Op, opn, st, s...; kwargs...)
+    if !isempty(Op)
+      adjoint && return swapprime(dag(Op), 0 => 1)
+      return Op
     end
   end
 
@@ -289,17 +347,20 @@ function op(name::AbstractString, s::Index...; kwargs...)
     for st in Iterators.product(stypes...)
       res = op(opn, st..., s...; kwargs...)
       if !isnothing(res)
+        adjoint && return swapprime(dag(res), 0 => 1)
         return res
       end
     end
 
-    Op = emptyITensor(prime.(s)..., dag.(s)...)
+    Op = ITensor(prime.(s)..., ITensors.dag.(s)...)
     for st in Iterators.product(stypes...)
       op!(Op, opn, st..., s...; kwargs...)
       if !isempty(Op)
+        adjoint && return swapprime(dag(Op), 0 => 1)
         return Op
       end
     end
+
     error(
       "Older op interface does not support multiple indices with mixed site types. You may want to overload `op(::OpName, ::SiteType..., ::Index...)` or `op!(::ITensor, ::OpName, ::SiteType..., ::Index...) for the operator \"$name\" and Index tags $(tags.(s)).",
     )
@@ -316,6 +377,7 @@ function op(name::AbstractString, s::Index...; kwargs...)
   for st in common_stypes
     res = op(st, s[1], name; kwargs...)
     if !isnothing(res)
+      adjoint && return dag(res)
       return res
     end
   end
@@ -327,13 +389,19 @@ function op(name::AbstractString, s::Index...; kwargs...)
   )
 end
 
+op(X::AbstractArray, s::Vector{<:Index}) = op(X, s...)
+
+op(X::AbstractArray, s::Index...) = itensor(X, prime.([s...]), dag.([s...]))
+
+op(s::Index, X::AbstractArray; kwargs...) = op(X, s; kwargs...)
+
 # For backwards compatibility, version of `op`
 # taking the arguments in the other order:
 op(s::Index, opname::AbstractString; kwargs...) = op(opname, s; kwargs...)
 
 # To ease calling of other op overloads,
 # allow passing a string as the op name
-op(opname::AbstractString, t::SiteType) = op(OpName(opname), t)
+op(opname::AbstractString, t::SiteType; kwargs...) = op(OpName(opname), t; kwargs...)
 
 """
     op(opname::String,sites::Vector{<:Index},n::Int; kwargs...)
@@ -383,13 +451,34 @@ end
 # is a vector of tuples.
 op(s::Vector{<:Index}, os::Tuple{AbstractString,Vararg}) = op(s, os...)
 op(os::Tuple{AbstractString,Vararg}, s::Vector{<:Index}) = op(s, os...)
+op(os::Tuple{Function,AbstractString,Vararg}, s::Vector{<:Index}) = op(s, os...)
+
+op(f::Function, args...; kwargs...) = f(op(args...; kwargs...))
+
+function op(
+  s::Vector{<:Index},
+  f::Function,
+  opname::AbstractString,
+  ns::Tuple{Vararg{Integer}};
+  kwargs...,
+)
+  return f(op(opname, s, ns...; kwargs...))
+end
+
+function op(
+  s::Vector{<:Index}, f::Function, opname::AbstractString, ns::Integer...; kwargs...
+)
+  return f(op(opname, s, ns; kwargs...))
+end
+
+op(s::Vector{<:Index}, opdata::Tuple{Function,AbstractString,Vararg}) = op(s, opdata...)
 
 # Here, Ref is used to not broadcast over the vector of indices
 # TODO: consider overloading broadcast for `op` with the example
 # here: https://discourse.julialang.org/t/how-to-broadcast-over-only-certain-function-arguments/19274/5
 # so that `Ref` isn't needed.
-ops(s::Vector{<:Index}, os::AbstractArray) = op.(Ref(s), os)
-ops(os::AbstractVector, s::Vector{<:Index}) = op.(Ref(s), os)
+ops(s::Vector{<:Index}, os::AbstractArray) = [op(oₙ, s) for oₙ in os]
+ops(os::AbstractVector, s::Vector{<:Index}) = [op(oₙ, s) for oₙ in os]
 
 @doc """
     ops(s::Vector{<:Index}, os::Vector)
@@ -429,6 +518,9 @@ state(::StateName, ::SiteType) = nothing
 state(::StateName, ::SiteType, ::Index) = nothing
 state!(::ITensor, ::StateName, ::SiteType, ::Index) = nothing
 
+# Syntax `state("Up", Index(2, "S=1/2"))`
+state(sn::String, i::Index) = state(i, sn)
+
 """
     state(s::Index, name::String; kwargs...)
 
@@ -465,7 +557,14 @@ function state(s::Index, name::AbstractString; kwargs...)::ITensor
   # Try calling state(::StateName"Name",::SiteType"Tag",s::Index)
   for st in stypes
     v = state(sname, st, s; kwargs...)
-    !isnothing(v) && return itensor(v, s)
+    if !isnothing(v)
+      if v isa ITensor
+        return v
+      else
+        # TODO: deprecate, only for backwards compatibility.
+        return itensor(v, s)
+      end
+    end
   end
 
   # Try calling state!(::ITensor,::StateName"Name",::SiteType"Tag",s::Index)
@@ -645,6 +744,8 @@ end
 # has_fermion_string system
 #
 #---------------------------------------
+
+has_fermion_string(operator::AbstractArray{<:Number}, s::Index; kwargs...)::Bool = false
 
 has_fermion_string(::OpName, ::SiteType) = nothing
 

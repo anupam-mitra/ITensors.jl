@@ -6,6 +6,67 @@ Note that as of Julia v1.5, in order to see deprecation warnings you will need t
 
 After we release v1 of the package, we will start following [semantic versioning](https://semver.org).
 
+ITensors v0.2.16 Release Notes
+==============================
+
+Bugs:
+
+- Fix `inner` `MPS` `rrule` for complex and QNs, add tests (#836)
+- Fix differentation of apply(::ITensor, ::ITensor) (#831)
+- Fix string indexing when setting elements (#826)
+    - Fix string indexing when setting elements, such as `T[i => "Up"] = 1.0`.
+    - Change `ITensor` `rrule` constructor signature from `typeof(ITensor)` to `Type{ITensor}`.
+
+Enhancements:
+
+- Define `diag(::Tensor)`, `diag(::ITensor)` (#837)
+- Support indexing notation A[Up] (#839)
+- Allow dividing by scalar ITensor (#838)
+- Add `normalize[!](::MPS/MPO)` (#820)
+- More flexible `state` syntax (overloading and calling) (#833)
+    - `state` defined with Index now should return an `ITensor`, for consistency with how `op` definitions work (this PR supports backwards compatibility for the now-deprecated syntax which returns a Vector that gets automatically converted to an ITensor
+).
+    - Allow syntax like `state("Up", Index(2, "S=1/2"))` (previously only `state(Index(2, "S=1/2"), "Up")` worked).
+- Define inner(::ITensor, ::ITensor) (#835)
+- Add more compact kwarg sweeps syntax for DMRG (#834)
+- Fix prime/tag rrule for MPS/MPO (#830)
+- Simplify Dense AutoMPO Backend, output lower triangular MPO in dense case (#828)
+- Fix `ITensor` `rrule` with `Array` reshaping (#824)
+- Add Riemannian optimization example
+
+ITensors v0.2.15 Release Notes
+==============================
+
+- Handle non-Hermitian `correlation_matrix` properly (#817)
+- Fix ElecK state definitions in example.
+
+ITensors v0.2.14 Release Notes
+==============================
+
+- Fix ITensor rrule and generalize ITensor to Array conversion (#818)
+- Fix apply and inner rrules for complex and QN conserving MPS (#816)
+- Change ordering that `op` definitions get called (#816)
+
+ITensors v0.2.13 Release Notes
+==============================
+
+- Fix eltype promotion dividing ITensor by scalar (#813)
+- Make getindex on EmptyStorage return EmptyNumber (#812)
+- Add variational circuit optimization (#811)
+- Expand ITensor development guide (#809)
+- Add issue templates for all subdir packages (#808)
+- Change randomMPS bond dim error to warning (#806)
+- Add docs for enabling debug checks (#801)
+- Remove ignore comments for JuliaFormatter (#799)
+- Improve docstrings for apply and ITensor constructors (#797)
+- FAQ on the relationship of ITensor to other tensor libraries (#795)
+- Move ITensorVisualizationCore into ITensors module (#787)
+
+ITensors v0.2.12 Release Notes
+==============================
+
+- Use registered subdir version of NDTensors (#780)
+
 ITensors v0.2.11 Release Notes
 ==============================
 
