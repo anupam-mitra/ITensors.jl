@@ -1,6 +1,9 @@
+using .DiagonalArrays: DiagonalArrays
+using .TypeParameterAccessors: TypeParameterAccessors
+
 export dense, dims, dim, mindim, diaglength
 
-# dim and dims are used in the Tensor interface, overload 
+# dim and dims are used in the Tensor interface, overload
 # base Dims here
 dims(ds::Dims) = ds
 
@@ -26,7 +29,7 @@ mindim(inds::Tuple) = minimum(dims(inds))
 
 mindim(::Tuple{}) = 1
 
-diaglength(inds::Tuple) = mindim(inds)
+DiagonalArrays.diaglength(inds::Tuple) = mindim(inds)
 
 """
     dim_to_strides(ds)
@@ -47,10 +50,10 @@ This is unexported, call with NDTensors.stride.
 dim_to_stride(ds, k::Int) = dim_to_strides(ds)[k]
 
 # This is to help with some generic programming in the Tensor
-# code (it helps to construct a Tuple(::NTuple{N,Int}) where the 
+# code (it helps to construct a Tuple(::NTuple{N,Int}) where the
 # only known thing for dispatch is a concrete type such
 # as Dims{4})
-similartype(::Type{<:Dims}, ::Type{Val{N}}) where {N} = Dims{N}
+TypeParameterAccessors.similartype(::Type{<:Dims}, ::Type{Val{N}}) where {N} = Dims{N}
 
 # This is to help with ITensor compatibility
 dim(i::Int) = i
@@ -86,3 +89,11 @@ Create an instance of the value type Order representing
 the order of an ITensor.
 """
 Order(N) = Order{N}()
+
+#dims for tensor
+# The size is obtained from the indices
+dims(T::Tensor) = dims(inds(T))
+dim(T::Tensor) = dim(inds(T))
+dim(T::Tensor, i::Int) = dim(inds(T), i)
+maxdim(T::Tensor) = maxdim(inds(T))
+mindim(T::Tensor) = mindim(inds(T))

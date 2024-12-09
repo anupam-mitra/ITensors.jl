@@ -12,7 +12,7 @@ let
   # For example:
   i = Index(2,"i")
   j = Index(3,"j")
-  T = randomITensor(i,j)
+  T = random_itensor(i,j)
   @show T
 end
 ```
@@ -30,7 +30,7 @@ function main(; d1 = 2, d2 = 3)
   # For example:
   i = Index(d1,"i")
   j = Index(d2,"j")
-  T = randomITensor(i,j)
+  T = random_itensor(i,j)
   @show T
 end
 
@@ -53,7 +53,7 @@ such as on a cluster.
 
 ## Running Interactively
 
-However, sometimes you want to do rapid development when first writing and 
+However, sometimes you want to do rapid development when first writing and
 testing a code. For this kind of work, the long startup and compilation times
 currently incurred by the Julia compiler can be a nuisance. Fortunately
 a nice solution is to alternate between modifying your code then running it
@@ -69,7 +69,7 @@ To set up this kind of session, take the following steps:
    ```
    Note that you must be in the same folder as `code.jl` for this to work; otherwise input the entire path to the `code.jl` file. The code will run and you will see its output in the REPL.
 
-3. Now say you want to modify and re-run the code. To do this, just edit the file in an editor in another window, without closing your Julia session. Now run the command 
+3. Now say you want to modify and re-run the code. To do this, just edit the file in an editor in another window, without closing your Julia session. Now run the command
    ```
    julia> include("code.jl")
    ```
@@ -102,3 +102,23 @@ alias julia_itensors="julia --sysimage ~/.julia/sysimages/sys_itensors.so -e \"u
 ```
 
 where of course you can use the command name you like when defining the alias. Now running commands like `julia_itensors code.jl` or `julia_itensors` to start an interactive session will have the ITensor system image pre-loaded and you will notice significantly faster startup times. The arguments `-e \"using ITensors\" -i` make it so that running `julia_itensors` also loads the ITensor library as soon as Julia starts up, so that you don't have to type `using ITensors` every time.
+
+## Using a Compiled Sysimage in Jupyter or VS Code
+
+If you have compiled a sysimage for ITensor as shown above, you can use it in Jupyter by running the following code:
+```
+using IJulia
+installkernel("julia_ITensors","--sysimage=~/.julia/sysimages/sys_itensors.so")
+```
+in the Julia REPL (Julia console).
+
+
+To load the ITensor sysimage in VS Code, you can add
+```
+"--sysimage ~/.julia/sysimages/sys_itensors.so"
+```
+as an argument under the `julia.additionalArgs` setting in your Settings.json file.
+
+For more information on the above, see the following [Julia Discourse post](https://discourse.julialang.org/t/using-an-itensors-sysimage-when-starting-the-julia-repl-in-vs-code/98625/4).
+
+

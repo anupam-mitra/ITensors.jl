@@ -1,4 +1,4 @@
-using ITensors
+using ITensors, ITensorMPS
 
 let
   N = 100
@@ -26,7 +26,7 @@ let
   append!(gates, reverse(gates))
 
   # Initialize psi to be a product state (alternating up and down)
-  psi = productMPS(s, n -> isodd(n) ? "Up" : "Dn")
+  psi = MPS(s, n -> isodd(n) ? "Up" : "Dn")
 
   c = div(N, 2) # center site
 
@@ -36,7 +36,7 @@ let
     Sz = expect(psi, "Sz"; sites=c)
     println("$t $Sz")
 
-    t≈ttotal && break
+    t ≈ ttotal && break
 
     psi = apply(gates, psi; cutoff)
     normalize!(psi)

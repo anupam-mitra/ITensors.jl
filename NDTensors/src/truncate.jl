@@ -1,26 +1,41 @@
-export truncate!
+using .TypeParameterAccessors: unwrap_array_type
+## TODO write Exposed version of truncate
+function truncate!!(P::AbstractArray; kwargs...)
+  return truncate!!(unwrap_array_type(P), P; kwargs...)
+end
 
-function truncate!(P::Vector{Float64}; kwargs...)::Tuple{Float64,Float64}
-  # Keyword argument deprecations
-  use_absolute_cutoff = false
-  if haskey(kwargs, :absoluteCutoff)
-    @warn "In truncate!, keyword argument absoluteCutoff is deprecated in favor of use_absolute_cutoff"
-    use_absolute_cutoff = get(kwargs, :absoluteCutoff, use_absolute_cutoff)
-  end
-  use_relative_cutoff = true
-  if haskey(kwargs, :doRelCutoff)
-    @warn "In truncate!, keyword argument doRelCutoff is deprecated in favor of use_relative_cutoff"
-    use_relative_cutoff = get(kwargs, :doRelCutoff, use_relative_cutoff)
-  end
+# CPU version.
+function truncate!!(::Type{<:Array}, P::AbstractArray; kwargs...)
+  truncerr, docut = truncate!(P; kwargs...)
+  return P, truncerr, docut
+end
 
-  maxdim::Int = min(get(kwargs, :maxdim, length(P)), length(P))
-  mindim::Int = max(get(kwargs, :mindim, 1), 1)
-  cutoff::Float64 = max(get(kwargs, :cutoff, 0.0), 0.0)
-  use_absolute_cutoff::Bool = get(kwargs, :use_absolute_cutoff, use_absolute_cutoff)
-  use_relative_cutoff::Bool = get(kwargs, :use_relative_cutoff, use_relative_cutoff)
+using .TypeParameterAccessors: unwrap_array_type
+# GPU fallback version, convert to CPU.
+function truncate!!(::Type{<:AbstractArray}, P::AbstractArray; kwargs...)
+  P_cpu = cpu(P)
+  truncerr, docut = truncate!(P_cpu; kwargs...)
+  P = adapt(unwrap_array_type(P), P_cpu)
+  return P, truncerr, docut
+end
+
+# CPU implementation.
+function truncate!(
+  P::AbstractVector;
+  mindim=nothing,
+  maxdim=nothing,
+  cutoff=nothing,
+  use_absolute_cutoff=nothing,
+  use_relative_cutoff=nothing,
+)
+  mindim = replace_nothing(mindim, default_mindim(P))
+  maxdim = replace_nothing(maxdim, length(P))
+  cutoff = replace_nothing(cutoff, typemin(eltype(P)))
+  use_absolute_cutoff = replace_nothing(use_absolute_cutoff, default_use_absolute_cutoff(P))
+  use_relative_cutoff = replace_nothing(use_relative_cutoff, default_use_relative_cutoff(P))
 
   origm = length(P)
-  docut = 0.0
+  docut = zero(eltype(P))
 
   #if P[1] <= 0.0
   #  P[1] = 0.0
@@ -30,7 +45,7 @@ function truncate!(P::Vector{Float64}; kwargs...)::Tuple{Float64,Float64}
 
   if origm == 1
     docut = abs(P[1]) / 2
-    return 0.0, docut
+    return zero(eltype(P)), docut
   end
 
   s = sign(P[1])
@@ -38,12 +53,12 @@ function truncate!(P::Vector{Float64}; kwargs...)::Tuple{Float64,Float64}
 
   #Zero out any negative weight
   for n in origm:-1:1
-    (P[n] >= 0.0) && break
-    P[n] = 0.0
+    (P[n] >= zero(eltype(P))) && break
+    P[n] = zero(eltype(P))
   end
 
   n = origm
-  truncerr = 0.0
+  truncerr = zero(eltype(P))
   while n > maxdim
     truncerr += P[n]
     n -= 1
@@ -57,13 +72,13 @@ function truncate!(P::Vector{Float64}; kwargs...)::Tuple{Float64,Float64}
       n -= 1
     end
   else
-    scale = 1.0
+    scale = one(eltype(P))
     if use_relative_cutoff
       scale = sum(P)
-      (scale == 0.0) && (scale = 1.0)
+      (scale == zero(eltype(P))) && (scale = one(eltype(P)))
     end
 
-    #Continue truncating until *sum* of discarded probability 
+    #Continue truncating until *sum* of discarded probability
     #weight reaches cutoff reached (or m==mindim)
     while (truncerr + P[n] <= cutoff * scale) && (n > mindim)
       truncerr += P[n]
@@ -79,13 +94,12 @@ function truncate!(P::Vector{Float64}; kwargs...)::Tuple{Float64,Float64}
 
   if n < origm
     docut = (P[n] + P[n + 1]) / 2
-    if abs(P[n] - P[n + 1]) < 1E-3 * P[n]
-      docut += 1E-3 * P[n]
+    if abs(P[n] - P[n + 1]) < eltype(P)(1e-3) * P[n]
+      docut += eltype(P)(1e-3) * P[n]
     end
   end
 
   s < 0 && (P .*= s)
   resize!(P, n)
-
   return truncerr, docut
 end

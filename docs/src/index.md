@@ -1,23 +1,15 @@
-# Introduction
-
-| **Documentation**                                                               |
-|:-------------------------------------------------------------------------------:|
-| [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://itensor.github.io/ITensors.jl/stable/) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://itensor.github.io/ITensors.jl/dev/) |
-
-|**Build Status**                                                                                |
-:-----------------------------------------------------------------------------------------------:|
-| [![Tests](https://github.com/ITensor/ITensors.jl/workflows/TestITensors/badge.svg)](https://github.com/ITensor/ITensors.jl/actions?query=workflow%3ATestITensors) [![codecov](https://codecov.io/gh/ITensor/ITensors.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ITensor/ITensors.jl) |
-
-|**Citation**                                                                    |
-|:-------------------------------------------------------------------------------:|
-|[![arXiv](https://img.shields.io/badge/arXiv-2007.14822-b31b1b.svg)](https://arxiv.org/abs/2007.14822)|
-
-|**Style Guide**
-|:-------------------------------------------------------------------------------:|
-|[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)|
+# ITensors.jl
 
 ITensor is a library for rapidly creating correct and efficient
 tensor network algorithms.
+
+| **Documentation**|**Citation**|
+|:----------------:|:----------:|
+|[![docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://itensor.github.io/ITensors.jl/dev/)|[![SciPost](https://img.shields.io/badge/SciPost-10.21468-blue.svg)](https://scipost.org/SciPostPhysCodeb.4) [![arXiv](https://img.shields.io/badge/arXiv-2007.14822-b31b1b.svg)](https://arxiv.org/abs/2007.14822)|
+
+|**Version**|**Download Statistics**|**Style Guide**|**License**|
+|:---------:|:---------------------:|:-------------:|:---------:|
+|[![version](https://juliahub.com/docs/ITensors/version.svg)](https://juliahub.com/ui/Packages/ITensors/P3pqL)|[![ITensor Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FITensors&query=total_requests&suffix=%2Fmonth&label=Downloads)](http://juliapkgstats.com/pkg/ITensors)|[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)|[![license](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/ITensor/ITensors.jl/blob/main/LICENSE)|
 
 The source code for ITensor can be found [on Github](https://github.com/ITensor/ITensors.jl).
 
@@ -37,10 +29,21 @@ Development of ITensor is supported by the Flatiron Institute, a division of the
 
 ## News
 
-ITensors.jl v0.2 has been released, with a few breaking changes as well as a variety of bug fixes
+- October 25, 2024: ITensors.jl v0.7 has been released. This is a major breaking change, since all of the MPS/MPO functionality from this package has been moved to [ITensorMPS.jl](https://github.com/ITensor/ITensorMPS.jl), along with all of the functionality of [ITensorTDVP.jl](https://github.com/ITensor/ITensorTDVP.jl). If you want to use MPS/MPO types and related functionality, such as `MPS`, `MPO`, `dmrg`, `siteinds`, `OpSum`, `op`, etc. you now must install and load the ITensorMPS.jl package. Additionally, if you are using ITensorTDVP.jl in your code, please change `using ITensorTDVP` to `using ITensorMPS`. ITensorMPS.jl has all of the same functionality as ITensorTDVP.jl, and ITensorTDVP.jl will be deprecated in favor of ITensorMPS.jl. **Note:** If you are using `ITensors.compile`, you must now install and load the ITensorMPS.jl package in order to trigger it to load properly, since it relies on running MPS/MPO functionality as example code for Julia to compile.
+
+- May 9, 2024: A new package [ITensorMPS.jl](https://github.com/ITensor/ITensorMPS.jl) has been released. We plan to move all of the MPS/MPO functionality in [ITensors.jl](https://github.com/ITensor/ITensors.jl) to [ITensorMPS.jl](https://github.com/ITensor/ITensorMPS.jl). For now, ITensorMPS.jl just re-exports the MPS/MPO functionality of ITensors.jl (as well as of [ITensorTDVP.jl](https://github.com/ITensor/ITensorTDVP.jl)), such as `dmrg`, `siteinds`, `MPS`, `MPO`, etc. To prepare for the change over to ITensorMPS.jl, please change `using ITensors` to `using ITensors, ITensorMPS` in any code that makes use of MPS/MPO functionality, and if you are using ITensorTDVP.jl change `using ITensorTDVP` to `using ITensorMPS` in your code.
+
+- May 8, 2024: ITensors.jl v0.6 has been released. This version deletes the experimental "combine-contract" contraction backend, which was enabled by `ITensors.enable_combine_contract()`. This feature enabled performing ITensor contractions by first combining indices and then performing contractions as matrix multiplications, which potentially could lead to speedups for certain contractions involving higher-order QN-conserving tensors. However, the speedups weren't consistent with the current implementation, and this feature will be incorporated into the library in a more systematic way when we release our new non-abelian symmetric tensor backend.
+
+- May 2, 2024: ITensors.jl v0.5 has been released. This version removes PackageCompiler.jl as a dependency and moves the package compilation functionality into a package extension. In order to use the `ITensors.compile()` function going forward, you need to install the PackageCompiler.jl package with `using Pkg: Pkg; Pkg.add("PackageCompiler")` and put `using PackageCompiler` together with `using ITensors` in your code.
+
+- April 16, 2024: ITensors.jl v0.4 has been released. This version removes HDF5.jl as a dependency and moves the HDF5 read and write functions for ITensor, MPS, MPO, and other associated types into a package extension. To enable ITensor HDF5 features, install the HDF5.jl package with `using Pkg: Pkg; Pkg.add("HDF5")` and put `using HDF5` together with `using ITensors` in your code. Other recent changes include support for multiple GPU backends using package extensions.
+
+- March 25, 2022: ITensors.jl v0.3 has been released. The main breaking change is that we no longer support versions of Julia below 1.6. Julia 1.6 is the long term support version of Julia (LTS), which means that going forward versions below Julia 1.6 won't be as well supported with bug fixes and improvements. Additionally, Julia 1.6 introduced many improvements including syntax improvements that we would like to start using with ITensors.jl, which becomes challenging if we try to support Julia versions below 1.6. See [here](https://www.oxinabox.net/2021/02/13/Julia-1.6-what-has-changed-since-1.0.html) and [here](https://julialang.org/blog/2021/03/julia-1.6-highlights/) for some nice summaries of the Julia 1.6 release.
+
+-  Jun 09, 2021: ITensors.jl v0.2 has been released, with a few breaking changes as well as a variety of bug fixes
 and new features. Take a look at the [upgrade guide](https://itensor.github.io/ITensors.jl/stable/UpgradeGuide_0.1_to_0.2.html)
-for help upgrading your code as well as the [change log](https://github.com/ITensor/ITensors.jl/blob/main/NEWS.md)
-for a comprehensive list of changes.
+for help upgrading your code.
 
 ## Installation
 
@@ -68,80 +71,39 @@ We recommend using ITensors.jl with Intel MKL in order to get the best possible 
 
 ## Documentation
 
-- [**STABLE**](https://itensor.github.io/ITensors.jl/stable/) --  **documentation of the most recently tagged version.**
-- [**DEVEL**](https://itensor.github.io/ITensors.jl/dev/) -- *documentation of the in-development version.*
+- [**LATEST**](https://itensor.github.io/ITensors.jl/dev/) -- *documentation of the latest version.*
 
 ## Citation
 
-If you use ITensor in your work, for now please cite the [arXiv preprint](https://arxiv.org/abs/2007.14822):
+If you use ITensor in your work, please cite the [ITensor Paper](https://www.scipost.org/SciPostPhysCodeb.4):
 
 ```bib
-@misc{itensor,
-    title={The \mbox{ITensor} Software Library for Tensor Network Calculations},
-    author={Matthew Fishman and Steven R. White and E. Miles Stoudenmire},
-    year={2020},
-    eprint={2007.14822},
-    archivePrefix={arXiv}
+@article{ITensor,
+	title={{The ITensor Software Library for Tensor Network Calculations}},
+	author={Matthew Fishman and Steven R. White and E. Miles Stoudenmire},
+	journal={SciPost Phys. Codebases},
+	pages={4},
+	year={2022},
+	publisher={SciPost},
+	doi={10.21468/SciPostPhysCodeb.4},
+	url={https://scipost.org/10.21468/SciPostPhysCodeb.4},
 }
 ```
 
-## Full Example Codes
+and associated "Codebase Release" for the version you have used. The current one is
 
-The ITensors.jl package contains a directory of examples, which we
-will continue to add to. You can find them online [here](https://github.com/ITensor/ITensors.jl/tree/main/examples).
-Additionally, once you have installed ITensors.jl you can find a local version
-of the examples in the directory `ITensors.examples_dir()`, and you can run them
-as follows from the Julia REPL:
-```julia
-julia> using ITensors
-
-julia> cd(ITensors.examples_dir())
-
-julia> readdir()
-7-element Array{String,1}:
- "basic_ops"
- "ctmrg"
- "dmrg"
- "gate_evolution"
- "krylov_methods"
- "src"
- "trg"
-
-julia> cd("dmrg")
-
-julia> readdir()
-8-element Array{String,1}:
- "1d_heisenberg.jl"
- "1d_heisenberg_conserve_spin.jl"
- "1d_hubbard_extended.jl"
- "1d_ising_with_observer.jl"
- "2d_heisenberg_conserve_spin.jl"
- "2d_hubbard_conserve_momentum.jl"
- "2d_hubbard_conserve_particles.jl"
- "input_files"
-
-julia> include("1d_heisenberg.jl")
-sweeps = Sweeps
-1 cutoff=1.0E-11, maxdim=10, mindim=1, noise=0.0E+00
-2 cutoff=1.0E-11, maxdim=20, mindim=1, noise=0.0E+00
-3 cutoff=1.0E-11, maxdim=100, mindim=1, noise=0.0E+00
-4 cutoff=1.0E-11, maxdim=100, mindim=1, noise=0.0E+00
-5 cutoff=1.0E-11, maxdim=200, mindim=1, noise=0.0E+00
-
-After sweep 1 energy=-138.837988775764 maxlinkdim=10 time=13.760
-After sweep 2 energy=-138.937408365962 maxlinkdim=20 time=0.249
-After sweep 3 energy=-138.940084788852 maxlinkdim=100 time=1.867
-After sweep 4 energy=-138.940086091070 maxlinkdim=100 time=3.824
-After sweep 5 energy=-138.940086113999 maxlinkdim=122 time=4.527
-Final energy = -138.940086113999
-
-julia> pwd()
-"[path_to_package_installation]/ITensors/examples/dmrg"
+```bib
+@article{ITensor-r0.3,
+	title={{Codebase release 0.3 for ITensor}},
+	author={Matthew Fishman and Steven R. White and E. Miles Stoudenmire},
+	journal={SciPost Phys. Codebases},
+	pages={4-r0.3},
+	year={2022},
+	publisher={SciPost},
+	doi={10.21468/SciPostPhysCodeb.4-r0.3},
+	url={https://scipost.org/10.21468/SciPostPhysCodeb.4-r0.3},
+}
 ```
-You can use your favorite text editor to view these examples. If you
-would like to modify them, either copy them into your own directory,
-or checkout ITensors.jl in development mode using the instructions
-in [Developing ITensors.jl](@ref).
 
 ## ITensor Code Samples
 
@@ -173,7 +135,7 @@ let
 
   @show hasinds(C,i,k,l) # = true
 
-  D = randomITensor(k,j,i) # ITensor with random elements
+  D = random_itensor(k,j,i) # ITensor with random elements
 
   # Add two ITensors
   # must have same set of indices
@@ -203,7 +165,7 @@ using ITensors
 let
   i = Index(10)           # index of dimension 10
   j = Index(20)           # index of dimension 20
-  M = randomITensor(i,j)  # random matrix, indices i,j
+  M = random_itensor(i,j)  # random matrix, indices i,j
   U,S,V = svd(M,i)        # compute SVD with i as row index
   @show M ≈ U*S*V         # = true
 
@@ -235,7 +197,7 @@ let
   j = Index(4,"j")
   k = Index(4,"k")
   l = Index(4,"l")
-  T = randomITensor(i,j,k,l)
+  T = random_itensor(i,j,k,l)
   U,S,V = svd(T,i,k)   # compute SVD with (i,k) as row indices (indices of U)
   @show hasinds(U,i,k) # = true
   @show hasinds(V,j,l) # = true
@@ -315,7 +277,7 @@ eigenvectors of Hamiltonian (energy) matrices which model
 the behavior of quantum systems.
 
 ```julia
-using ITensors
+using ITensors, ITensorMPS
 let
   # Create 100 spin-one indices
   N = 100
@@ -325,42 +287,34 @@ let
   # a Hamiltonian matrix, and convert
   # these terms to an MPO tensor network
   # (here we make the 1D Heisenberg model)
-  ampo = OpSum()
+  os = OpSum()
   for j=1:N-1
-    ampo += "Sz",j,"Sz",j+1
-    ampo += 0.5,"S+",j,"S-",j+1
-    ampo += 0.5,"S-",j,"S+",j+1
+    os += "Sz",j,"Sz",j+1
+    os += 0.5,"S+",j,"S-",j+1
+    os += 0.5,"S-",j,"S+",j+1
   end
-  H = MPO(ampo,sites)
+  H = MPO(os,sites)
 
   # Create an initial random matrix product state
-  psi0 = randomMPS(sites)
+  psi0 = random_mps(sites)
 
   # Plan to do 5 passes or 'sweeps' of DMRG,
   # setting maximum MPS internal dimensions
   # for each sweep and maximum truncation cutoff
   # used when adapting internal dimensions:
-  sweeps = Sweeps(5)
-  setmaxdim!(sweeps, 10,20,100,100,200)
-  setcutoff!(sweeps, 1E-10)
-  @show sweeps
+  nsweeps = 5
+  maxdim = [10,20,100,100,200]
+  cutoff = 1E-10
 
   # Run the DMRG algorithm, returning energy
   # (dominant eigenvalue) and optimized MPS
-  energy, psi = dmrg(H,psi0, sweeps)
+  energy, psi = dmrg(H,psi0; nsweeps, maxdim, cutoff)
   println("Final energy = $energy")
 
   nothing
 end
 
 # output
-
-sweeps = Sweeps
-1 cutoff=1.0E-10, maxdim=10, mindim=1, noise=0.0E+00
-2 cutoff=1.0E-10, maxdim=20, mindim=1, noise=0.0E+00
-3 cutoff=1.0E-10, maxdim=100, mindim=1, noise=0.0E+00
-4 cutoff=1.0E-10, maxdim=100, mindim=1, noise=0.0E+00
-5 cutoff=1.0E-10, maxdim=200, mindim=1, noise=0.0E+00
 
 After sweep 1 energy=-137.954199761732 maxlinkdim=9 maxerr=2.43E-16 time=9.356
 After sweep 2 energy=-138.935058943878 maxlinkdim=20 maxerr=4.97E-06 time=0.671
@@ -369,3 +323,5 @@ After sweep 4 energy=-138.940086009318 maxlinkdim=100 maxerr=1.05E-10 time=11.64
 After sweep 5 energy=-138.940086058840 maxlinkdim=96 maxerr=1.00E-10 time=12.771
 Final energy = -138.94008605883985
 ```
+You can find more examples of running `dmrg` and related algorithms [here](https://github.com/ITensor/ITensorMPS.jl/tree/main/examples).
+

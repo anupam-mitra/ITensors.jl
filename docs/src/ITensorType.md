@@ -13,7 +13,7 @@ ITensor(::Type{<:Number}, ::ITensors.Indices)
 ITensor(::Type{<:Number}, ::UndefInitializer, ::ITensors.Indices)
 ITensor(::Type{<:Number}, ::Number, ::ITensors.Indices)
 ITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Array{<:Number}, ::ITensors.Indices{Index{Int}}; kwargs...)
-randomITensor(::Type{<:Number}, ::ITensors.Indices)
+random_itensor(::Type{<:Number}, ::ITensors.Indices)
 onehot
 ```
 
@@ -26,7 +26,7 @@ itensor(::Array{<:Number}, ::ITensors.Indices)
 ## QN BlockSparse Constructors
 
 ```@docs
-ITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
+ITensor(::Type{<:Number}, ::QN, ::ITensors.QNIndices)
 ITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Array{<:Number}, ::ITensors.QNIndices; tol=0)
 ITensor(::Type{<:Number}, ::UndefInitializer, ::QN, ::ITensors.Indices)
 ```
@@ -34,23 +34,26 @@ ITensor(::Type{<:Number}, ::UndefInitializer, ::QN, ::ITensors.Indices)
 ## Diagonal constructors
 
 ```@docs
-diagITensor(::Type{<:Number}, ::ITensors.Indices)
-diagITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Vector{<:Number}, ::ITensors.Indices)
-diagITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Number, ::ITensors.Indices)
+diag_itensor(::Type{<:Number}, ::ITensors.Indices)
+diag_itensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Vector{<:Number}, ::ITensors.Indices)
+diag_itensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Number, ::ITensors.Indices)
 delta(::Type{<:Number}, ::ITensors.Indices)
 ```
 
 ## QN Diagonal constructors
 
 ```@docs
-diagITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
+diag_itensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
 delta(::Type{<:Number}, ::QN, ::ITensors.Indices)
 ```
 
 ## Convert to Array
 
 ```@docs
-Array{ElT, N}(::ITensor, ::Vararg{Index, N}) where {ElT, N}
+Array{ElT, N}(::ITensor, ::ITensors.Indices) where {ElT, N}
+array(::ITensor, ::Any...)
+matrix(::ITensor, ::Any...)
+vector(::ITensor, ::Any...)
 array(::ITensor)
 matrix(::ITensor)
 vector(::ITensor)
@@ -113,7 +116,10 @@ swapinds(::ITensor, ::Any...)
 
 ```@docs
 *(::ITensor, ::ITensor)
+dag(T::ITensor; kwargs...)
+directsum(::Pair{ITensor},::Pair{ITensor},::Pair{ITensor},args...; kws...)
 exp(::ITensor, ::Any, ::Any)
+nullspace(::ITensor, ::Any...)
 ```
 
 ## Decompositions
@@ -127,5 +133,7 @@ factorize(::ITensor, ::Any...)
 
 ```@docs
 permute(::ITensor, ::Any)
+dense(::ITensor)
+denseblocks(::ITensor)
 ```
 

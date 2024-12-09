@@ -10,7 +10,7 @@ const warn_order = Ref{Union{Int,Nothing}}(default_warn_order)
 """
     ITensors.get_warn_order()
 
-Return the threshold for the order of an ITensor above which 
+Return the threshold for the order of an ITensor above which
 ITensors will emit a warning.
 
 You can set the threshold with the function `set_warn_order!(N::Int)`.
@@ -39,7 +39,7 @@ end
     ITensors.reset_warn_order()
 
 After this is called, ITensor will warn about ITensor contractions
-that result in ITensors above the default order 
+that result in ITensors above the default order
 $default_warn_order.
 
 This function returns the initial warning threshold (what it was
@@ -64,6 +64,7 @@ disable_warn_order() = set_warn_order(nothing)
 Disable warning about the ITensor order in a block of code.
 
 # Examples
+
 ```julia
 A = ITensor(IndexSet(_ -> Index(1), Order(8)))
 B = ITensor(IndexSet(_ -> Index(1), Order(8)))
@@ -90,6 +91,7 @@ Temporarily set the order threshold for warning about the ITensor
 order in a block of code.
 
 # Examples
+
 ```julia
 @set_warn_order 12 A * B
 
@@ -143,33 +145,34 @@ $(NDTensors.enable_threaded_blocksparse_docstring(@__MODULE__))
 enable_threaded_blocksparse() = NDTensors._enable_threaded_blocksparse()
 
 """
+    enable_threaded_blocksparse(enable::Bool)
+
+`enable_threaded_blocksparse(true)` enables threaded block sparse
+operations (equivalent to `enable_threaded_blocksparse()`).
+
+`enable_threaded_blocksparse(false)` disables threaded block sparse
+operations (equivalent to `enable_threaded_blocksparse()`).
+"""
+function enable_threaded_blocksparse(enable::Bool)
+  return if enable
+    enable_threaded_blocksparse()
+  else
+    disable_threaded_blocksparse()
+  end
+end
+
+"""
 $(NDTensors.enable_threaded_blocksparse_docstring(@__MODULE__))
 """
 disable_threaded_blocksparse() = NDTensors._disable_threaded_blocksparse()
 
 #
-# Turn enable or disable combining QN ITensors before contracting
-#
-
-const _using_combine_contract = Ref(false)
-
-using_combine_contract() = _using_combine_contract[]
-
-function enable_combine_contract()
-  _using_combine_contract[] = true
-  return nothing
-end
-
-function disable_combine_contract()
-  _using_combine_contract[] = false
-  return nothing
-end
-
-#
 # Turn debug checks on and off
 #
 
-using_debug_checks() = false
+const _using_debug_checks = Ref{Bool}(false)
+
+using_debug_checks() = _using_debug_checks[]
 
 macro debug_check(ex)
   quote
@@ -180,15 +183,13 @@ macro debug_check(ex)
 end
 
 function enable_debug_checks()
-  if !getfield(@__MODULE__, :using_debug_checks)()
-    Core.eval(@__MODULE__, :(using_debug_checks() = true))
-  end
+  _using_debug_checks[] = true
+  return nothing
 end
 
 function disable_debug_checks()
-  if getfield(@__MODULE__, :using_debug_checks)()
-    Core.eval(@__MODULE__, :(using_debug_checks() = false))
-  end
+  _using_debug_checks[] = false
+  return nothing
 end
 
 #
@@ -206,23 +207,5 @@ end
 
 function disable_contraction_sequence_optimization()
   _using_contraction_sequence_optimization[] = false
-  return nothing
-end
-
-#
-# Turn the auto fermion system on and off
-#
-
-const _using_auto_fermion = Ref(false)
-
-using_auto_fermion() = _using_auto_fermion[]
-
-function enable_auto_fermion()
-  _using_auto_fermion[] = true
-  return nothing
-end
-
-function disable_auto_fermion()
-  _using_auto_fermion[] = false
   return nothing
 end

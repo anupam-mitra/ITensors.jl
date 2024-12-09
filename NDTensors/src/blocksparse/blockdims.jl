@@ -1,3 +1,5 @@
+using .TypeParameterAccessors: TypeParameterAccessors
+
 """
     BlockDim
 
@@ -18,7 +20,9 @@ const BlockDims{N} = NTuple{N,BlockDim}
 
 Base.ndims(ds::Type{<:BlockDims{N}}) where {N} = N
 
-similartype(::Type{<:BlockDims}, ::Type{Val{N}}) where {N} = BlockDims{N}
+function TypeParameterAccessors.similartype(::Type{<:BlockDims}, ::Type{Val{N}}) where {N}
+  return BlockDims{N}
+end
 
 Base.copy(ds::BlockDims) = ds
 
@@ -176,7 +180,7 @@ end
 
 # Given a CartesianIndex in the range dims(T), get the block it is in
 # and the index within that block
-function blockindex(T, i::Vararg{Integer,N}) where {ElT,N}
+function blockindex(T, i::Vararg{Integer,N}) where {N}
   # Bounds check.
   # Do something more robust like:
   # @boundscheck Base.checkbounds_indices(Bool, map(Base.oneto, dims(T)), i) || throw_boundserror(T, i)
@@ -202,7 +206,13 @@ blockindex(T) = (), Block{0}()
 # This is to help with ITensor compatibility
 #
 
+block(i::BlockDim, n::Integer) = i[n]
+
+resize(n::Int, newdim::Int) = newdim
+
 setblockdim!(dim1::BlockDim, newdim::Int, n::Int) = setindex!(dim1, newdim, n)
+
+setblock!(i::BlockDim, b::Int, n::Integer) = (i[n] = b)
 
 sim(dim::BlockDim) = copy(dim)
 

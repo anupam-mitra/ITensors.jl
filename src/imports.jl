@@ -20,6 +20,7 @@ import Base:
   allunique,
   axes,
   complex,
+  conj,
   convert,
   copy,
   copyto!,
@@ -34,12 +35,15 @@ import Base:
   findfirst,
   getindex,
   hash,
+  imag,
   intersect,
   intersect!,
   isapprox,
   isassigned,
   isempty,
   isless,
+  isreal,
+  iszero,
   iterate,
   keys,
   lastindex,
@@ -47,9 +51,10 @@ import Base:
   map,
   map!,
   ndims,
-  permutedims,
+  print,
   promote_rule,
   push!,
+  real,
   resize!,
   setdiff,
   setdiff!,
@@ -79,7 +84,7 @@ import Base.Broadcast:
 import ITensors.ContractionSequenceOptimization:
   contraction_cost, optimal_contraction_sequence
 
-import HDF5: read, write
+import Adapt: adapt_structure, adapt_storage
 
 import LinearAlgebra:
   axpby!,
@@ -91,26 +96,41 @@ import LinearAlgebra:
   factorize,
   ishermitian,
   lmul!,
+  lq,
   mul!,
   norm,
   normalize,
   normalize!,
+  nullspace,
   qr,
   rmul!,
   svd,
   tr,
   transpose
 
+using ITensors.NDTensors.GPUArraysCoreExtensions: cpu
+
 using ITensors.NDTensors:
+  Algorithm,
+  @Algorithm_str,
   EmptyNumber,
   _Tuple,
   _NTuple,
   blas_get_num_threads,
+  disable_auto_fermion,
+  double_precision,
   eachblock,
   eachdiagblock,
+  enable_auto_fermion,
   fill!!,
   randn!!,
-  timer
+  permutedims,
+  permutedims!,
+  single_precision,
+  timer,
+  using_auto_fermion
+
+using NDTensors.CUDAExtensions: cu
 
 import ITensors.NDTensors:
   # Modules
@@ -119,11 +139,11 @@ import ITensors.NDTensors:
   AliasStyle,
   AllowAlias,
   NeverAlias,
-  # Methods
   array,
   blockdim,
   blockoffsets,
   contract,
+  datatype,
   dense,
   denseblocks,
   diaglength,
@@ -148,12 +168,15 @@ import ITensors.NDTensors:
   outer,
   permuteblocks,
   polar,
+  ql,
   scale!,
+  setblock!,
   setblockdim!,
   setinds,
   setstorage,
   sim,
   storage,
+  storagetype,
   sum,
   tensor,
   truncate!,
@@ -163,7 +186,7 @@ import ITensors.NDTensors:
   addblock!,
   store
 
-import ITensors.Ops: Prod, Sum
+import ITensors.Ops: Prod, Sum, terms
 
 import Random: randn!
 

@@ -3,14 +3,12 @@ export
   insertblock!!,
   setindex,
   setindex!!,
-
   # blocksparse/blockdims.jl
   BlockDims,
   blockdim,
   blockdims,
   nblocks,
   blockindex,
-
   # blocksparse/blocksparse.jl
   # Types
   Block,
@@ -44,7 +42,6 @@ export
   ⊗,
   # Methods
   randomTensor,
-  randomDenseTensor,
   array,
   contract,
   matrix,
@@ -76,4 +73,17 @@ export
   tensor,
   inds,
   ind,
-  store
+  store,
+
+  # truncate.jl
+  truncate!,
+
+  # linearalgebra.jl
+  eigs,
+  entropy,
+  polar,
+  ql,
+  random_orthog,
+  random_unitary,
+  Spectrum,
+  truncerror

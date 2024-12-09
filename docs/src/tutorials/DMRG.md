@@ -2,8 +2,8 @@
 
 The [density matrix renormalization group (DMRG)](https://tensornetwork.org/mps/algorithms/dmrg/)
 is an algorithm for computing eigenstates
-of Hamiltonians (or extremal eigenvectors of large, Hermitian matrices). 
-It computes these eigenstates in the 
+of Hamiltonians (or extremal eigenvectors of large, Hermitian matrices).
+It computes these eigenstates in the
 [matrix product state (MPS)](https://tensornetwork.org/mps/) format.
 
 Let's see how to set up and run a DMRG calculation using the ITensor library.
@@ -25,26 +25,26 @@ discuss the main steps. If you need help running the code below, see the getting
 started page on [Running ITensor and Julia Codes](@ref).
 
 ```julia
-using ITensors
+using ITensors, ITensorMPS
 let
   N = 100
   sites = siteinds("S=1",N)
 
-  ampo = OpSum()
+  os = OpSum()
   for j=1:N-1
-    ampo += "Sz",j,"Sz",j+1
-    ampo += 1/2,"S+",j,"S-",j+1
-    ampo += 1/2,"S-",j,"S+",j+1
+    os += "Sz",j,"Sz",j+1
+    os += 1/2,"S+",j,"S-",j+1
+    os += 1/2,"S-",j,"S+",j+1
   end
-  H = MPO(ampo,sites)
+  H = MPO(os,sites)
 
-  psi0 = randomMPS(sites,10)
+  psi0 = random_mps(sites;linkdims=10)
 
-  sweeps = Sweeps(5)
-  setmaxdim!(sweeps, 10,20,100,100,200)
-  setcutoff!(sweeps, 1E-10)
+  nsweeps = 5
+  maxdim = [10,20,100,100,200]
+  cutoff = [1E-10]
 
-  energy, psi = dmrg(H,psi0, sweeps)
+  energy,psi = dmrg(H,psi0;nsweeps,maxdim,cutoff)
 
   return
 end
@@ -56,13 +56,13 @@ end
 The first two lines
 
 ```@example siteinds; continued=true
-using ITensors # hide
+using ITensors, ITensorMPS
 N = 100
 sites = siteinds("S=1",N)
 ```
 
 tells the function `siteinds` to make an array of ITensor [Index](https://itensor.github.io/ITensors.jl/stable/IndexType.html) objects which
-have the properties of ``S=1`` spins. This means their dimension will be 3 and 
+have the properties of ``S=1`` spins. This means their dimension will be 3 and
 they will carry the `"S=1"` tag, which will enable the next part of the code to know
 how to make appropriate operators for them.
 
@@ -75,24 +75,24 @@ Try printing out some of these indices to verify their properties:
 The next part of the code builds the Hamiltonian:
 
 ```julia
-ampo = OpSum()
+os = OpSum()
 for j=1:N-1
-  ampo += "Sz",j,"Sz",j+1
-  ampo += 1/2,"S+",j,"S-",j+1
-  ampo += 1/2,"S-",j,"S+",j+1
+  os += "Sz",j,"Sz",j+1
+  os += 1/2,"S+",j,"S-",j+1
+  os += 1/2,"S-",j,"S+",j+1
 end
-H = MPO(ampo,sites)
+H = MPO(os,sites)
 ```
 
 An `OpSum` is an object which accumulates Hamiltonian terms such as `"Sz",1,"Sz",2`
-so that they can be summed afterward into a matrix product operator (MPO) tensor network. 
-The line of code `H = MPO(ampo,sites)` constructs the Hamiltonian in the MPO format, with
+so that they can be summed afterward into a matrix product operator (MPO) tensor network.
+The line of code `H = MPO(os,sites)` constructs the Hamiltonian in the MPO format, with
 physical indices given by the array `sites`.
 
 The line
 
 ```julia
-psi0 = randomMPS(sites,10)
+psi0 = random_mps(sites;linkdims=10)
 ```
 
 constructs an MPS `psi0` which has the physical indices `sites` and a bond dimension of 10.
@@ -102,20 +102,21 @@ This choice can help prevent the DMRG calculation from getting stuck in a local 
 The lines
 
 ```julia
-sweeps = Sweeps(5)
-setmaxdim!(sweeps, 10,20,100,100,200)
-setcutoff!(sweeps, 1E-10)
+nsweeps = 5
+maxdim = [10,20,100,100,200]
+cutoff = [1E-10]
 ```
 
-construct a `Sweeps` objects which is initialized to define 5 sweeps of DMRG. The
-call to `setmaxdim!` sets the maximum dimension allowed for each sweep and the call
-to `setcutoff!` sets the truncation error goal of each sweep (if fewer values are
+define the number of DMRG sweeps (five) we will instruct the code to do, as well as the
+parameters that will control the speed and accuracy of the DMRG algorithm within
+each sweep. The array `maxdim` limits the maximum MPS bond dimension allowed during
+each sweep and `cutoff` defines the truncation error goal of each sweep (if fewer values are
 specified than sweeps, the last value is used for all remaining sweeps).
 
-Finally the call 
+Finally the call
 
 ```julia
-energy, psi = dmrg(H,psi0,sweeps)
+energy,psi = dmrg(H,psi0;nsweeps,maxdim,cutoff)
 ```
 
 runs the DMRG algorithm included in ITensor, using `psi0` as an

@@ -67,7 +67,7 @@ println("The (i,j,k) = (2,1,3) element of T is ",el)
 To initialize all of the elements of an ITensor at once, you
 can pass a Julia array into the ITensor constructor.
 
-For example, if we want to construct an ITensor `A` with indices 
+For example, if we want to construct an ITensor `A` with indices
 `i,j` we can initialize it from a matrix as follows:
 
 ```julia
@@ -104,12 +104,12 @@ using ITensors # hide
 k = Index(4,"index_k")
 m = Index(2,"index_m")
 
-T = randomITensor(k,m)
+T = random_itensor(k,m)
 @show T
 display(T) # hide
 ```
 
-Here we used the `randomITensor` constructor to fill T with random elements
+Here we used the `random_itensor` constructor to fill T with random elements
 but we could make an ITensor some other way too.
 
 Now to convert `T` into a regular Julia array `A`, use the [`Array`](@ref) constructor
@@ -130,7 +130,7 @@ Note that for efficiency reasons, the array returned by the `array` function wil
 sometimes be a *view* of the ITensor, such that changing an element of `A` would
 also change the corresponding element of `T`. This is not always the case though:
 for example if the indices are passed in a different order from how the internal
-ITensor storage is arranged, or if  `T` is a block-sparse ITensor, since the 
+ITensor storage is arranged, or if  `T` is a block-sparse ITensor, since the
 (not stored) zero blocks will need to be filled in.
 
 
@@ -144,9 +144,9 @@ i = Index(3,"i")
 j = Index(2,"j")
 k = Index(4,"k")
 
-A = randomITensor(i,j,k)
-B = randomITensor(i,j,k)
-C = randomITensor(k,i,j)
+A = random_itensor(i,j,k)
+B = random_itensor(i,j,k)
+C = random_itensor(k,i,j)
 ```
 Above we have initialized these ITensors to have random elements, just for the sake of this example.
 
@@ -174,7 +174,7 @@ ITensors support Julia broadcasting operations, making it quite easy to carry ou
 i = Index(2,"i")
 j = Index(3,"j")
 
-A = randomITensor(i,j)
+A = random_itensor(i,j)
 ```
 
 Here are some examples of basic element-wise operations we can do using Julia's dotted operator broadcasting syntax.
@@ -222,16 +222,16 @@ T .= myf.(T)
 ## Making an ITensor with a Single Non-Zero Element
 
 It is often useful to make ITensors with all elements zero
-except for a specific element that is equal to 1.0. 
+except for a specific element that is equal to 1.0.
 Use cases can include making product-state quantum wavefunctions
 or contracting single-element ITensors with other ITensors to
 set their indices to a fixed value.
 
 To make such an ITensor, use the [`onehot`](@ref) function. Borrowing terminology from engineering,
 a "one hot" vector or tensor has a single element equal to 1.0 and
-the rest zero. (In previous versions of ITensor this function was called `setelt`.) 
+the rest zero. (In previous versions of ITensor this function was called `setelt`.)
 
-The ITensor function [`onehot`](@ref) takes one or more 
+The ITensor function [`onehot`](@ref) takes one or more
 Index-value Pairs such as `i=>2` and `j=>1` and returns an ITensor
 with a 1.0 in the location specified by the Index values:
 
@@ -241,7 +241,7 @@ i = Index(2)
 O1 = onehot(i=>1)
 println(O1)
 ```
-    
+
 ```@example onehot_2
 using ITensors # hide
 i = Index(2) # hide
@@ -267,7 +267,7 @@ i = Index(4,"i")
 j = Index(3,"j")
 l = Index(4,"l")
 
-A = randomITensor(i,j,l)
+A = random_itensor(i,j,l)
 ```
 
 and we want to trace `A` by summing over the indices `i` and `l` locked together,
@@ -294,8 +294,8 @@ trA = A * delta(i,l)
 The ITensor approach to tensor factorizations emphasizes the structure
 of the factorization, and does not require knowing the index ordering.
 
-ITensor offers various tensor factorizations, such as the 
-singular value decomposition (SVD) and the QR factorization. 
+ITensor offers various tensor factorizations, such as the
+singular value decomposition (SVD) and the QR factorization.
 These are extended to the case of tensors by treating some of the indices
 as the "row" indices and the rest of the indices as the "column" indices,
 reshaping the tensor into a matrix to carry out the factorization, then
@@ -313,13 +313,13 @@ M = U S V^\dagger
 ```
 with U and V having the property ``U^\dagger U = 1`` and ``V^\dagger V = 1``.
 The matrix S is diagonal and has real, non-negative entries known as the singular
-values, which are typically ordered from largest to smallest. 
+values, which are typically ordered from largest to smallest.
 The SVD is well-defined for any matrix, including rectangular matrices. It also
 leads to a controlled approximation, where the error due to discarding columns of U and V
 is small if the corresponding singular values discarded are small.
 
-To compute the SVD of an ITensor, you only need to specify which indices are (collectively) 
-the "row" indices (thinking of the ITensor as a matrix), with the rest assumed to be the "column" 
+To compute the SVD of an ITensor, you only need to specify which indices are (collectively)
+the "row" indices (thinking of the ITensor as a matrix), with the rest assumed to be the "column"
 indices.
 
 Say we have an ITensor with indices i,j, and k
@@ -340,7 +340,7 @@ Diagrammatically the SVD operation above looks like:
 
 ![](itensor_factorization_figures/SVD_Ex1.png)
 
-The guarantee of the `svd` function is that the ITensor 
+The guarantee of the `svd` function is that the ITensor
 product `U*S*V` gives us back an ITensor identical to T:
 
 ```julia
@@ -354,7 +354,7 @@ i = Index(3,"i")
 j = Index(4,"j")
 k = Index(5,"k")
 
-T = randomITensor(i,j,k)
+T = random_itensor(i,j,k)
 
 U,S,V = svd(T,(i,k))
 
@@ -388,7 +388,7 @@ Let us revisit the example above, but also provide some of these accuracy parame
 i = Index(10,"i")
 j = Index(40,"j")
 k = Index(20,"k")
-T = randomITensor(i,j,k)
+T = random_itensor(i,j,k)
 
 U,S,V = svd(T,(i,k),cutoff=1E-2)
 ```
@@ -412,7 +412,7 @@ i = Index(10,"i");
 j = Index(40,"j");
 k = Index(20,"k");
 
-T = randomITensor(i,j,k)
+T = random_itensor(i,j,k)
 
 U,S,V = svd(T,(i,k),cutoff=1E-2)
 
@@ -434,7 +434,7 @@ can do this as follows:
 ![](itensor_factorization_figures/QR_Ex1.png)
 
 ```julia
-T = randomITensor(i,j,k)
+T = random_itensor(i,j,k)
 Q,R = qr(T,(i,k);positive=true)
 ```
 
@@ -442,7 +442,69 @@ Note the use of the optional `positive=true` keyword argument, which ensures tha
 the diagonal elements of `R` are non-negative. With this option, the QR factorization
 is *unique*, which can be useful in certain cases.
 
+## Combining Multiple Indices into One Index
+
+It can be very useful to combine or merge multiple indices of an ITensor into a
+single Index. Say we have an ITensor with indices `i,j,k` and we want to combine
+Index `i` and Index `k` into a new Index. This new Index (call it `c`) will have
+a dimension whose size is the dimension of `i` times the dimension of `k`.
+
+To carry out this procedure we can make a special kind of ITensor: a combiner.
+To make a combiner, call the function `combiner`, passing the indices you
+want to combine:
+```@example combiner
+using ITensors # hide
+i = Index(4,"i") # hide
+j = Index(3,"j") # hide
+k = Index(2,"k") # hide
+C = combiner(i,k; tags="c")
+nothing # hide
+```
+
+Then if we have an ITensor
+```@example combiner
+T = random_itensor(i,j,k)
+@show inds(T)
+```
+we can combine indices `i` and `k` by contracting with the combiner:
+```@example combiner
+CT = C * T
+nothing # hide
+```
+
+Printing out the indices of the new ITensor `CT` we can see that it
+has only two indices:
+```@example combiner
+@show inds(CT)
+```
+The first is the newly made combined Index, which was made for us by
+the `combiner` function and the second is the `j` Index of `T`
+which was not part of the combining process. To access the combined
+Index you can call the `combinedind` function on the combiner:
+```@example combiner
+ci = combinedind(C)
+```
+
+We can visualize all of the steps above as follows:
+![](combiner_itensor.png)
+
+Combining is not limited to two indices and you can
+combine any number of indices, in any order, using a combiner.
+
+To undo the combining process and uncombine the Index `c` back into `i,k`,
+just contract with the conjugate of the combiner ITensor `dag(C)`.
+```@example combiner
+UT = dag(C) * CT
+@show inds(UT)
+```
+
+
 ## Write and Read an ITensor to Disk with HDF5
+
+
+
+!!! info
+    Make sure to install the HDF5 package to use this feature. (Run `julia> ] add HDF5` in the Julia REPL console.)
 
 Saving ITensors to disk can be very useful. For example, you
 might encounter a bug in your own code, and by reading the
@@ -463,7 +525,7 @@ from a calculation. To write it to an HDF5 file named "myfile.h5"
 you can use the following pattern:
 
 ```julia
-using ITensors.HDF5
+using HDF5
 f = h5open("myfile.h5","w")
 write(f,"T",T)
 close(f)
@@ -474,8 +536,6 @@ or "Result Tensor" and doesn't have to have the same name as the reference `T`.
 Closing the file `f` is optional and you can also write other objects to the same
 file before closing it.
 
-[*Above we did `using ITensors.HDF5` since HDF5 is already included as a dependency with ITensor. You can also do `using HDF5` but must add the HDF5 package beforehand for that to work.*]
-
 **Reading an ITensor from an HDF5 File**
 
 Say you have an HDF5 file "myfile.h5" which contains an ITensor stored as a dataset with the
@@ -483,7 +543,7 @@ name "T". (Which would be the situation if you wrote it as in the example above.
 To read this ITensor back from the HDF5 file, use the following pattern:
 
 ```julia
-using ITensors.HDF5
+using HDF5
 f = h5open("myfile.h5","r")
 T = read(f,"T",ITensor)
 close(f)

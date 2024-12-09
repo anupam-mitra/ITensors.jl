@@ -20,7 +20,7 @@ end
 # Constructors
 #
 
-Block{N}(t::Tuple{Vararg{<:Any,N}}) where {N} = Block{N}(UInt.(t))
+Block{N}(t::Tuple{Vararg{Any,N}}) where {N} = Block{N}(UInt.(t))
 
 Block{N}(I::CartesianIndex{N}) where {N} = Block{N}(I.I)
 
@@ -38,9 +38,9 @@ Block(v::SVector{N}) where {N} = Block{N}(v)
 
 Block(t::NTuple{N,UInt}) where {N} = Block{N}(t)
 
-Block(t::Tuple{Vararg{<:Any,N}}) where {N} = Block{N}(t)
+Block(t::Tuple{Vararg{Any,N}}) where {N} = Block{N}(t)
 
-Block(::Tuple{}) where {N} = Block{0}(())
+Block(::Tuple{}) = Block{0}(())
 
 Block(I::Union{Integer,Block{1}}...) = Block(I)
 
@@ -56,7 +56,7 @@ convert(::Type{Block}, I::CartesianIndex{N}) where {N} = Block{N}(I.I)
 
 convert(::Type{Block{N}}, I::CartesianIndex{N}) where {N} = Block{N}(I.I)
 
-convert(::Type{Block}, t::Tuple) where {N} = Block(t)
+convert(::Type{Block}, t::Tuple) = Block(t)
 
 convert(::Type{Block{N}}, t::Tuple) where {N} = Block{N}(t)
 
@@ -175,6 +175,6 @@ hash(b::Block, h::UInt) = h + hash(b)
 # Printing for Block type
 #
 
-show(io::IO, mime::MIME"text/plain", b::Block) = print(io, "Block$(Int.(Tuple(b)))")
+Base.show(io::IO, mime::MIME"text/plain", b::Block) = print(io, "Block$(Int.(Tuple(b)))")
 
-show(io::IO, b::Block) = show(io, MIME("text/plain"), b)
+Base.show(io::IO, b::Block) = show(io, MIME("text/plain"), b)

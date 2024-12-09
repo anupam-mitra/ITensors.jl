@@ -1,11 +1,18 @@
-using Documenter, ITensors
+using Documenter
+using ITensors
+using ITensorMPS
 
+# Allows using ITensorMPS.jl docstrings in ITensors.jl documentation:
+# https://github.com/JuliaDocs/Documenter.jl/issues/1734
 DocMeta.setdocmeta!(ITensors, :DocTestSetup, :(using ITensors); recursive=true)
+DocMeta.setdocmeta!(ITensorMPS, :DocTestSetup, :(using ITensorMPS); recursive=true)
 
 sitename = "ITensors.jl"
 
 settings = Dict(
-  :modules => [ITensors],
+  # Allows using ITensorMPS.jl docstrings in ITensors.jl documentation:
+  # https://github.com/JuliaDocs/Documenter.jl/issues/1734
+  :modules => [ITensors, ITensorMPS],
   :pages => [
     "Introduction" => "index.md",
     "Getting Started with ITensor" => [
@@ -32,6 +39,7 @@ settings = Dict(
       "MPS and MPO" => "MPSandMPO.md",
       "QN" => "QN.md",
       "SiteType and op, state, val functions" => "SiteType.md",
+      "SiteTypes Included with ITensor" => "IncludedSiteTypes.md",
       "DMRG" => [
         "DMRG.md",
         "Sweeps.md",
@@ -40,24 +48,29 @@ settings = Dict(
         "Observer.md",
         "DMRGObserver.md",
       ],
-      "OpSum (AutoMPO)" => "OpSum.md",
+      "OpSum" => "OpSum.md",
     ],
     "Frequently Asked Questions" => [
       "Programming Language (Julia, C++, ...) FAQs" => "faq/JuliaAndCpp.md",
       "DMRG FAQs" => "faq/DMRG.md",
+      "Quantum Number (QN) FAQs" => "faq/QN.md",
       "ITensor Development FAQs" => "faq/Development.md",
       "Relationship of ITensor to other tensor libraries FAQs" => "faq/RelationshipToOtherLibraries.md",
+      "Julia Package Manager FAQs" => "faq/JuliaPkg.md",
+      "High-Performance Computing FAQs" => "faq/HPC.md",
     ],
     "Upgrade guides" => ["Upgrading from 0.1 to 0.2" => "UpgradeGuide_0.1_to_0.2.md"],
     "ITensor indices and Einstein notation" => "Einsum.md",
-    "Advanced usage guide" => [
-      "Advanced usage guide" => "AdvancedUsageGuide.md",
+    "Advanced Usage Guide" => [
+      "Advanced Usage Guide" => "AdvancedUsageGuide.md",
       "Multithreading" => "Multithreading.md",
+      "Running on GPUs" => "RunningOnGPUs.md",
       "Symmetric (QN conserving) tensors: background and usage" => "QNTricks.md",
       "Timing and profiling" => "CodeTiming.md",
       "Contraction sequence optimization" => "ContractionSequenceOptimization.md",
       "HDF5 File Formats" => "HDF5FileFormats.md",
     ],
+    "Developer Guide" => "DeveloperGuide.md",
   ],
   :format => Documenter.HTML(; assets=["assets/favicon.ico"], prettyurls=false),
   :doctest => true,

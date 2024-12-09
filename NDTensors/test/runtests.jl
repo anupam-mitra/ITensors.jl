@@ -1,17 +1,19 @@
-using Test
-using NDTensors
+using SafeTestsets: @safetestset
 
-@testset "NDTensors" begin
-  @testset "$filename" for filename in [
-    "linearalgebra.jl",
-    "dense.jl",
-    "blocksparse.jl",
-    "diag.jl",
-    "emptynumber.jl",
-    "emptystorage.jl",
-  ]
-    println("Running $filename")
-    include(filename)
+@safetestset "NDTensors" begin
+  using Test: @testset
+  using NDTensors: NDTensors
+  @testset "$(@__DIR__)" begin
+    filenames = filter(readdir(@__DIR__)) do f
+      startswith("test_")(f) && endswith(".jl")(f)
+    end
+    for dir in ["lib"]
+      push!(filenames, joinpath(dir, "runtests.jl"))
+    end
+    @testset "Test $(@__DIR__)/$filename" for filename in filenames
+      println("Running $(@__DIR__)/$filename")
+      include(filename)
+    end
   end
 end
 

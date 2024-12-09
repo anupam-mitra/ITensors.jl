@@ -21,9 +21,9 @@ ValLength(::NTuple{N}) where {N} = Val(N)
 # is not type stable and therefore not efficient.
 ValLength(v::Vector) = Val(length(v))
 
-ValLength(::Tuple{Vararg{<:Any,N}}) where {N} = Val(N)
+ValLength(::Tuple{Vararg{Any,N}}) where {N} = Val(N)
 
-ValLength(::Type{<:Tuple{Vararg{<:Any,N}}}) where {N} = Val{N}
+ValLength(::Type{<:Tuple{Vararg{Any,N}}}) where {N} = Val{N}
 
 ValLength(::CartesianIndex{N}) where {N} = Val(N)
 ValLength(::Type{CartesianIndex{N}}) where {N} = Val{N}
@@ -145,13 +145,13 @@ function _deleteat(t, pos, i)
   return t[i + 1]
 end
 
-function deleteat(t::NTuple{N}, pos::Integer) where {N}
-  return ntuple(i -> _deleteat(t, pos, i), Val(N - 1))
+function deleteat(t::Tuple, pos::Integer)
+  return ntuple(i -> _deleteat(t, pos, i), Val(length(t) - 1))
 end
 
 deleteat(t::Tuple, I::Tuple{Int}) = deleteat(t, I[1])
 function deleteat(t::Tuple, I::Tuple{Int,Int,Vararg{Int}})
-  return deleteat_sorted(t, sort(I; rev=true))
+  return deleteat_sorted(t, TupleTools.sort(I; rev=true))
 end
 
 deleteat_sorted(t::Tuple, pos::Int64) = deleteat(t, pos[1])
@@ -165,40 +165,6 @@ end
 function getindices(t::Tuple, I::NTuple{N,Int}) where {N}
   return ntuple(i -> t[I[i]], Val(N))
 end
-
-# Taken from TupleTools.jl
-"""
-    sort(t::Tuple; lt=isless, by=identity, rev::Bool=false) -> ::Tuple
-Sorts the tuple `t`.
-"""
-Base.sort(t::Tuple; lt=isless, by=identity, rev::Bool=false) = _sort(t, lt, by, rev)
-@inline function _sort(t::Tuple, lt=isless, by=identity, rev::Bool=false)
-  t1, t2 = _split(t)
-  t1s = _sort(t1, lt, by, rev)
-  t2s = _sort(t2, lt, by, rev)
-  return _merge(t1s, t2s, lt, by, rev)
-end
-_sort(t::Tuple{Any}, lt=isless, by=identity, rev::Bool=false) = t
-_sort(t::Tuple{}, lt=isless, by=identity, rev::Bool=false) = t
-
-function _split(t::NTuple{N}) where {N}
-  M = N >> 1
-  return ntuple(i -> t[i], M), ntuple(i -> t[i + M], N - M)
-end
-
-function _merge(t1::Tuple, t2::Tuple, lt, by, rev)
-  if lt(by(first(t1)), by(first(t2))) != rev
-    return (first(t1), _merge(Base.tail(t1), t2, lt, by, rev)...)
-  else
-    return (first(t2), _merge(t1, Base.tail(t2), lt, by, rev)...)
-  end
-end
-_merge(t1::Tuple{}, t2::Tuple, lt, by, rev) = t2
-_merge(t1::Tuple, t2::Tuple{}, lt, by, rev) = t1
-
-#function tail(t::NTuple{N})
-#  return ntuple(i -> t[i+1],Val(N-1))
-#end
 
 function _insertat(t, pos, n_insert, val, i)
   if i < pos
@@ -214,13 +180,13 @@ end
 
 Remove the value at pos and insert the elements in val
 """
-function insertat(t::NTuple{N}, val::NTuple{M}, pos::Integer) where {N,M}
+function insertat(t::Tuple, val::Tuple, pos::Integer)
+  N, M = length(t), length(val)
+  @boundscheck checkbounds(Base.OneTo(N), pos)
   return ntuple(i -> _insertat(t, pos, M, val, i), Val(N + M - 1))
 end
 
-function insertat(t::NTuple{N}, val, pos::Integer) where {N}
-  return insertat(t, tuple(val), pos)
-end
+insertat(t::Tuple, val, pos::Integer) = insertat(t, tuple(val), pos)
 
 function _insertafter(t, pos, n_insert, val, i)
   if i <= pos
