@@ -19,8 +19,9 @@ LabelledNumbers.unlabel(a::LabelledUnitRangeDual) = unlabel(nondual(a))
 LabelledNumbers.LabelledStyle(::LabelledUnitRangeDual) = IsLabelled()
 
 for f in [:first, :getindex, :last, :length, :step]
-  @eval Base.$f(a::LabelledUnitRangeDual, args...) =
-    labelled($f(unlabel(a), args...), label(a))
+  @eval Base.$f(a::LabelledUnitRangeDual, args...) = labelled(
+    $f(unlabel(a), args...), label(a)
+  )
 end
 
 # fix ambiguities

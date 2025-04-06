@@ -244,7 +244,7 @@ using Test: @test, @testset
   end
 
   a = SparseArray{Matrix{elt}}(
-    2, 3; zero=(a, I) -> (z = similar(eltype(a), 2, 3); fill!(z, false); z)
+    2, 3; zero=(a, I) -> (z=similar(eltype(a), 2, 3); fill!(z, false); z)
   )
   a[1, 2] = randn(elt, 2, 3)
   b = NestedPermutedDimsArray(a, (2, 1))
