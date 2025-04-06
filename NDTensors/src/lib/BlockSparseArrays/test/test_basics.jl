@@ -188,8 +188,8 @@ using .NDTensorsTestUtils: devices_list, is_supported_eltype
       # Broken:
       ## @test b[Block()[]] == 2
       for b in (
-        (b = copy(a); @allowscalar b[] = 2; b),
-        (b = copy(a); @allowscalar b[CartesianIndex()] = 2; b),
+        (b=copy(a); @allowscalar b[] = 2; b),
+        (b=copy(a); @allowscalar b[CartesianIndex()] = 2; b),
       )
         @test size(b) == ()
         @test isone(length(b))
